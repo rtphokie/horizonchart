@@ -88,11 +88,11 @@ horizonchart twilight --location "Ottawa, ON" --date 2026-10-02
 
 ### Common options
 
-| Option | Meaning                                                                                                  |
-|---|----------------------------------------------------------------------------------------------------------|
-| `-l, --location` | Coordinates (`35.19,-88.99`, `35.78N 78.64W`) or a place name (`"Monkey's Eyebrow, NC"`, `"Ottawa, ON"`) |
-| `--tz` | Time zone name; by default it's looked up from the location                                              |
-| `-o, --output-dir` | Where to write PNGs (default: current directory)                                                         |
+| Option | Meaning                                                                                                |
+|---|--------------------------------------------------------------------------------------------------------|
+| `-l, --location` | Coordinates (`35.19,-88.99`, `47.99N 84.77W`) or a place name (`"Monkey's Eyebrow, NC"`, `"Wawa, ON"`) |
+| `--tz` | Time zone name; by default it's looked up from the location                                            |
+| `-o, --output-dir` | Where to write PNGs (default: current directory)                                                       |
 
 Place names are looked up with OpenStreetMap's
 [Nominatim](https://nominatim.org) service, at most one request per second,
@@ -110,10 +110,10 @@ from zoneinfo import ZoneInfo
 
 from horizonchart.skyview import plot_targets, plot_twilight_views
 
-plot_targets(35.7796, -78.6382, ["Saturn"],
+plot_targets(47.99, -84.77, ["Saturn"],
              datetime(2026, 10, 2, 22, 0, tzinfo=ZoneInfo("America/New_York")))
 
-plot_twilight_views(35.7796, -78.6382, date(2026, 10, 2))
+plot_twilight_views(47.99, -84.77, date(2026, 10, 2))
 # {"morning": Path(...), "evening": Path(...)}
 ```
 
@@ -155,12 +155,7 @@ priority-star lists) are at the top of `src/horizonchart/skyview.py`.
 
 ## Compatibility with starplot
 
-horizonchart draws its charts with starplot's public API, but a few features
-rely on starplot internals that have no public equivalent yet: keeping labels
-clear of highlighted asterism lines, detecting whether a label was placed,
-and converting coordinates for those checks. Because of this, the dependency
-is pinned to the tested starplot release series (`>=0.21.1,<0.22`); newer
-starplot releases need checking before the pin is raised.
+horizonchart draws its charts with starplot's public API, but a few features rely on starplot internals that have no public equivalent yet: keeping labels clear of highlighted asterism lines, detecting whether a label was placed, and converting coordinates for those checks. Because of this, the dependency is pinned to the tested starplot release series (`>=0.21.1,<0.22`).  Update at your own risk.
 
 ## Tests
 
@@ -168,26 +163,16 @@ starplot releases need checking before the pin is raised.
 uv run pytest
 ```
 
-The tests render real charts (Saturn from Raleigh on 2026-10-02, twilight
-views for the same date), download the catalogs on first run, and take a
-minute or two.
+The tests render real charts which require download of significant catalogs on first run and can take a few minutes to run as a result.
 
 ## Credits
 
-- [starplot](https://starplot.dev) by Steve Berardi does the chart drawing,
-  projections and catalogs (stars from Hipparcos/Tycho via its Big Sky
-  catalog, deep-sky objects from [OpenNGC](https://github.com/mattiaverga/OpenNGC)).
-  The horizon-view style follows its
+- [starplot](https://starplot.dev) by Steve Berardi does the chart drawing, projections and catalogs (stars from Hipparcos/Tycho via its Big Sky catalog, deep-sky objects from [OpenNGC](https://github.com/mattiaverga/OpenNGC)). The horizon-view style follows its
   [horizon gradient example](https://starplot.dev/examples/horizon-gradient/).
-- [Skyfield](https://rhodesmill.org/skyfield/) by Brandon Rhodes computes
-  sunrise and sunset, planetary magnitudes and alt/az positions, using JPL
-  ephemerides.
-- Place-name lookup uses [Nominatim](https://nominatim.org) through
-  [geopy](https://geopy.readthedocs.io); geocoding data
-  © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.
+- [Skyfield](https://rhodesmill.org/skyfield/) by Brandon Rhodes computes sunrise and sunset, planetary magnitudes and alt/az positions, using JPL ephemerides.
+- Place-name lookup uses [Nominatim](https://nominatim.org) through [geopy](https://geopy.readthedocs.io); geocoding data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.
 - Time zones come from [timezonefinder](https://github.com/jannikmi/timezonefinder).
-- Titles use the [Inter](https://rsms.me/inter/) typeface by Rasmus Andersson,
-  bundled under the SIL Open Font License (`src/horizonchart/fonts/OFL.txt`).
+- Titles use the [Inter](https://rsms.me/inter/) typeface by Rasmus Andersson, bundled under the SIL Open Font License (`src/horizonchart/fonts/OFL.txt`).
 
 ## License
 
