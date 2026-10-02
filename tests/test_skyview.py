@@ -295,3 +295,34 @@ def test_twilight_filename():
         "20261002T1930_33.87S_151.21E_eve.png"
     )
     assert twilight_filename(when, -33.8688, 151.2093, "morning").endswith("_mor.png")
+
+
+def test_footnote_text():
+    assert (
+        skyview.footnote_text(OCT_2_2026_10PM, *RALEIGH)
+        == "Fri Oct 2, 2026 · 10:00 PM EDT · 35.78°N 78.64°W"
+    )
+
+
+def lower_right(path):
+    """The lower right corner, where the timestamp goes."""
+    with Image.open(path) as im:
+        w, h = im.size
+        return im.convert("RGB").crop((w * 2 // 3, h * 9 // 10, w, h)).tobytes()
+
+
+def test_target_view_timestamp_and_labels_can_be_left_off(tmp_path):
+    (tmp_path / "full").mkdir()
+    (tmp_path / "bare").mkdir()
+    full = plot_targets(*RALEIGH, ["Saturn"], OCT_2_2026_10PM, output_dir=tmp_path / "full")
+    bare = plot_targets(
+        *RALEIGH,
+        ["Saturn"],
+        OCT_2_2026_10PM,
+        output_dir=tmp_path / "bare",
+        timestamp=False,
+        labels=False,
+    )
+    assert lower_right(full) != lower_right(bare)
+    # Without labels or timestamp, less is drawn
+    assert bare.stat().st_size < full.stat().st_size

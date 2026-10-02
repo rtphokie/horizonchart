@@ -103,3 +103,66 @@ def test_geocoder_identifies_itself(monkeypatch):
     assert cli.geocoder_user_agent().startswith("horizonchart/")
     monkeypatch.setenv("HORIZONCHART_CONTACT", "me@example.com")
     assert cli.geocoder_user_agent().endswith("; me@example.com)")
+
+
+@pytest.mark.parametrize(
+    "argv, expected",
+    [
+        ([], {"timestamp": True, "labels": True}),
+        (["--no-timestamp"], {"timestamp": False, "labels": True}),
+        (["--no-labels"], {"timestamp": True, "labels": False}),
+    ],
+)
+def test_target_display_flags(tmp_path, monkeypatch, argv, expected):
+    seen = {}
+
+    def fake_plot_targets(*args, **kwargs):
+        seen.update(kwargs)
+        return tmp_path / "chart.png"
+
+    monkeypatch.setattr(cli, "plot_targets", fake_plot_targets)
+    cli.main(["target", "Saturn", "-l", "35.78,-78.64", "-t", "2026-10-02 22:00", *argv])
+    assert seen == expected
+
+
+@pytest.mark.parametrize(
+    "argv, expected",
+    [
+        ([], {"title": True, "timestamp": True, "labels": True}),
+        (["--no-title"], {"title": False, "timestamp": True, "labels": True}),
+        (
+            ["--no-title", "--no-timestamp", "--no-labels"],
+            {"title": False, "timestamp": False, "labels": False},
+        ),
+    ],
+)
+def test_twilight_display_flags(tmp_path, monkeypatch, argv, expected):
+    seen = {}
+
+    def fake_plot_twilight_views(*args, **kwargs):
+        seen.update({k: kwargs[k] for k in ("title", "timestamp", "labels")})
+        return {"morning": tmp_path / "m.png", "evening": tmp_path / "e.png"}
+
+    monkeypatch.setattr(cli, "plot_twilight_views", fake_plot_twilight_views)
+    cli.main(["twilight", "-l", "35.78,-78.64", "-d", "2026-10-02", *argv])
+    assert seen == expected
+
+
+def test_title_flag_is_twilight_only():
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["target", "Saturn", "-l", "0,0", "--no-title"])
+
+
+def test_default_target_time_is_two_hours_after_sunset(monkeypatch):
+    zone = ZoneInfo("America/New_York")
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 2, 9, 30, tzinfo=tz)
+
+    monkeypatch.setattr(cli, "datetime", FixedDatetime)
+    # Raleigh sunset on Oct 2, 2026 is 6:56 PM EDT; 8:56 PM rounds to 9:00
+    assert cli.default_target_time(35.7796, -78.6382, zone) == datetime(
+        2026, 10, 2, 21, 0, tzinfo=zone
+    )

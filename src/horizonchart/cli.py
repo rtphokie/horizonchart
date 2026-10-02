@@ -12,7 +12,12 @@ from zoneinfo import ZoneInfo
 from timezonefinder import TimezoneFinder
 
 from horizonchart import DATA_PATH, __version__
-from horizonchart.skyview import LIMITING_MAGNITUDE, plot_targets, plot_twilight_views
+from horizonchart.skyview import (
+    LIMITING_MAGNITUDE,
+    plot_targets,
+    plot_twilight_views,
+    twilight_times,
+)
 
 GEOCODE_CACHE = DATA_PATH / "horizonchart-geocode.json"
 # Nominatim's usage policy asks applications to identify themselves, ideally
@@ -95,11 +100,19 @@ def local_zone(lat: float, lon: float, tz: str | None) -> ZoneInfo:
     return ZoneInfo(tz or TimezoneFinder().timezone_at(lat=lat, lng=lon))
 
 
-def parse_local_datetime(text: str | None, zone: ZoneInfo) -> datetime:
-    """ "2026-10-02 22:00" (or "2026-10-02T22:00") as local time in `zone`;
-    now if `text` is None."""
-    if text is None:
-        return datetime.now(zone).replace(second=0, microsecond=0)
+# With no --time, target charts show the sky this long after today's sunset
+DEFAULT_HOURS_AFTER_SUNSET = 2
+
+
+def default_target_time(lat: float, lon: float, zone: ZoneInfo) -> datetime:
+    """DEFAULT_HOURS_AFTER_SUNSET after today's sunset at `lat`/`lon`,
+    rounded to the nearest half hour."""
+    today = datetime.now(zone).date()
+    return twilight_times(lat, lon, today, zone.key, DEFAULT_HOURS_AFTER_SUNSET)[1]
+
+
+def parse_local_datetime(text: str, zone: ZoneInfo) -> datetime:
+    """ "2026-10-02 22:00" (or "2026-10-02T22:00") as local time in `zone`."""
     parsed = datetime.fromisoformat(text.strip())
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=zone)
@@ -126,6 +139,19 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument(
         "-o", "--output-dir", default=".", type=Path, help="where to write the PNG"
     )
+    common.add_argument(
+        "--no-timestamp",
+        dest="timestamp",
+        action="store_false",
+        help="leave off the date, time and place in the lower right corner",
+    )
+    common.add_argument(
+        "--no-labels",
+        dest="labels",
+        action="store_false",
+        help="leave off the names of planets, the Moon, stars, deep-sky objects, "
+        "asterisms and constellations",
+    )
 
     target = commands.add_parser(
         "target",
@@ -142,7 +168,8 @@ def build_parser() -> argparse.ArgumentParser:
     target.add_argument(
         "-t",
         "--time",
-        help='local date and time, e.g. "2026-10-02 22:00" (default: now)',
+        help='local date and time, e.g. "2026-10-02 22:00" (default: 2 hours after '
+        "today's sunset, to the nearest half hour)",
     )
 
     twilight = commands.add_parser(
@@ -165,6 +192,12 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"faintest stars and deep-sky objects to show (default: {LIMITING_MAGNITUDE}, "
         "suburban twilight; dark skies 4-6)",
     )
+    twilight.add_argument(
+        "--no-title",
+        dest="title",
+        action="store_false",
+        help='leave off the title ("Looking east, 1 hour before sunrise")',
+    )
     return parser
 
 
@@ -176,8 +209,22 @@ def main(argv: list[str] | None = None) -> int:
         args.output_dir.mkdir(parents=True, exist_ok=True)
 
         if args.command == "target":
-            when = parse_local_datetime(args.time, zone)
-            paths = [plot_targets(lat, lon, args.targets, when, args.output_dir)]
+            when = (
+                parse_local_datetime(args.time, zone)
+                if args.time
+                else default_target_time(lat, lon, zone)
+            )
+            paths = [
+                plot_targets(
+                    lat,
+                    lon,
+                    args.targets,
+                    when,
+                    args.output_dir,
+                    timestamp=args.timestamp,
+                    labels=args.labels,
+                )
+            ]
         else:
             day = args.date or datetime.now(zone).date()
             views = plot_twilight_views(
@@ -187,6 +234,9 @@ def main(argv: list[str] | None = None) -> int:
                 tz=zone.key,
                 output_dir=args.output_dir,
                 limiting_magnitude=args.limiting_magnitude,
+                title=args.title,
+                timestamp=args.timestamp,
+                labels=args.labels,
             )
             paths = list(views.values())
     except ValueError as error:

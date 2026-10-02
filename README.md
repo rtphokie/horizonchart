@@ -59,6 +59,9 @@ horizonchart target Saturn --location "Monkey's Eyebrow, KY" --time "2026-10-02 
 # -> saturn_20261002T2200_35.78N_78.64W.png
 
 horizonchart target Moon Pleiades -l "35.78N 78.64W" -t "2026-10-03 02:00"
+
+# No --time: 2 hours after tonight's sunset
+horizonchart target Saturn -l "35.78N 78.64W"
 ```
 
 Targets can be:
@@ -70,7 +73,8 @@ Targets can be:
 | Deep-sky common names | `Pleiades`, `"Andromeda Galaxy"`, `Beehive` |
 | Named stars | `Vega`, `Betelgeuse` |
 
-`--time` is local time at the location (default: now). Each target must be
+`-t, --time` is local time at the location. By default it's 2 hours after
+today's sunset there, rounded to the nearest half hour. Each target must be
 above the horizon at that time.
 
 ### Twilight views for a date
@@ -85,6 +89,7 @@ horizonchart twilight --location "Ottawa, ON" --date 2026-10-02
 |---|---|
 | `-d, --date` | Date (default: today at the location) |
 | `-m, --limiting-magnitude` | Faintest stars and deep-sky objects shown. Default 2.0 (suburban twilight); 4–6 for dark skies |
+| `--no-title` | Leave off the title ("Looking east, 1 hour before sunrise") |
 
 ### Common options
 
@@ -93,6 +98,8 @@ horizonchart twilight --location "Ottawa, ON" --date 2026-10-02
 | `-l, --location` | Coordinates (`35.19,-88.99`, `47.99N 84.77W`) or a place name (`"Monkey's Eyebrow, NC"`, `"Wawa, ON"`) |
 | `--tz` | Time zone name; by default it's looked up from the location                                            |
 | `-o, --output-dir` | Where to write PNGs (default: current directory)                                                       |
+| `--no-timestamp` | Leave off the date, time and location in the lower right corner                                        |
+| `--no-labels` | Leave off all names: planets, the Moon, stars, deep-sky objects, asterisms and constellations          |
 
 Place names are looked up with OpenStreetMap's
 [Nominatim](https://nominatim.org) service, at most one request per second,
@@ -115,6 +122,10 @@ plot_targets(47.99, -84.77, ["Saturn"],
 
 plot_twilight_views(47.99, -84.77, date(2026, 10, 2))
 # {"morning": Path(...), "evening": Path(...)}
+
+# The command line's --no-title, --no-timestamp and --no-labels
+plot_targets(..., timestamp=False, labels=False)
+plot_twilight_views(..., title=False, timestamp=False, labels=False)
 ```
 
 ## How charts are composed
@@ -132,6 +143,7 @@ plot_twilight_views(47.99, -84.77, date(2026, 10, 2))
   view.
 - At most five stars are labeled, chosen from a priority list of well-known
   names (Polaris, Sirius, Betelgeuse, Vega, …). Other stars are unlabeled.
+- The date, time and location are in small text in the lower right.
 
 **Finder charts**
 
@@ -147,8 +159,7 @@ plot_twilight_views(47.99, -84.77, date(2026, 10, 2))
 - Each view looks east or west, scored by what's in view (planets, the Moon,
   deep-sky objects, asterisms, bright stars).
 - The title, e.g. "Looking east, 1 hour before sunrise", is drawn on the
-  landscape. The date, time and location are in small text in the lower
-  right.
+  landscape.
 
 Tuning constants (radii, magnitudes, font sizes, the asterism and
 priority-star lists) are at the top of `src/horizonchart/skyview.py`.

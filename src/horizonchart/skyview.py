@@ -499,24 +499,47 @@ def title_font(size: int, weight: str = "Bold") -> ImageFont.FreeTypeFont:
     return font
 
 
-def add_title(path: Path, title: str, footnote: str, altitude: tuple[float, float]) -> None:
-    """Draw a white title centered on the landscape, and a small grey footnote
-    in the lower right corner."""
+def footnote_text(when: datetime, lat: float, lon: float) -> str:
+    """e.g. "Fri Oct 2, 2026 · 10:00 PM EDT · 35.78°N 78.64°W"."""
+    lat_text = f"{abs(lat):.2f}°{'N' if lat >= 0 else 'S'}"
+    lon_text = f"{abs(lon):.2f}°{'E' if lon >= 0 else 'W'}"
+    return (
+        f"{when:%a %b} {when.day}, {when:%Y} · "
+        f"{when.hour % 12 or 12}:{when:%M %p %Z} · {lat_text} {lon_text}"
+    )
+
+
+def annotate(
+    path: Path,
+    footnote: str | None = None,
+    title: str | None = None,
+    altitude: tuple[float, float] | None = None,
+) -> None:
+    """Draw a small grey footnote in the lower right corner and, if given, a
+    white title centered on the landscape (which needs the view's
+    `altitude` range to find it)."""
+    if footnote is None and title is None:
+        return
     with Image.open(path) as im:
         im = im.convert("RGB")
         w, h = im.size
         draw = ImageDraw.Draw(im)
 
         margin = round(h * FOOTNOTE_MARGIN)
-        footnote_font = title_font(round(h * FOOTNOTE_SIZE), "Medium")
-        footnote_left = w - margin - draw.textlength(footnote, font=footnote_font)
-        draw.text(
-            (w - margin, h - margin),
-            footnote,
-            font=footnote_font,
-            anchor="rd",
-            fill=FOOTNOTE_COLOR,
-        )
+        footnote_left = w - margin
+        if footnote is not None:
+            footnote_font = title_font(round(h * FOOTNOTE_SIZE), "Medium")
+            footnote_left -= draw.textlength(footnote, font=footnote_font)
+            draw.text(
+                (w - margin, h - margin),
+                footnote,
+                font=footnote_font,
+                anchor="rd",
+                fill=FOOTNOTE_COLOR,
+            )
+        if title is None:
+            im.save(path)
+            return
 
         # Center the title in the band below the lowest point of the hills,
         # shrinking it if it would run into the footnote
@@ -692,12 +715,14 @@ def render(
     path: Path,
     ground: tuple[float, float] = (3.5, 6),
     star_magnitude: float | None = None,
+    labels: bool = True,
 ) -> Path:
     """Draw a horizon view and export it to `path` as a 16:9 PNG. `star_where`
     selects the background stars (`star_magnitude` is its magnitude limit, if
     it has one, used to decide which stars can be labeled); stars in the
     drawn constellations and asterisms, and the brightest stars in view, are
-    always drawn."""
+    always drawn. `labels=False` leaves off every name: targets, stars,
+    asterisms and constellations."""
     az_scale = (azimuth[1] - azimuth[0]) / REFERENCE_AZ_SPAN
     center_az = (azimuth[0] + azimuth[1]) / 2
     asterism_stars = [s for _asterism, lines in asterisms for line in lines for s in line]
@@ -744,7 +769,7 @@ def render(
 
     # Labels inside an asterism first, then those beside one, which can then
     # avoid the others
-    labeled = [(a, lines) for a, lines in asterisms if not same_as_constellation(a)]
+    labeled = [(a, lines) for a, lines in asterisms if labels and not same_as_constellation(a)]
     labeled.sort(key=lambda al: al[0].label_style.get("anchor_point", "center") != "center")
     for asterism, lines in labeled:
         label = {
@@ -814,7 +839,11 @@ def render(
             or (star_magnitude is not None and star.magnitude <= star_magnitude)
         )
 
-    label_hips = choose_star_labels(sky, altitude, azimuth, drawn, min_altitude=ground[1])
+    label_hips = (
+        choose_star_labels(sky, altitude, azimuth, drawn, min_altitude=ground[1])
+        if labels
+        else []
+    )
     star_labels = [_.hip.isin(label_hips)] if label_hips else False
     p.stars(
         where=star_where,
@@ -856,7 +885,7 @@ def render(
         p.marker(
             ra=target.ra,
             dec=target.dec,
-            label=target.label,
+            label=target.label if labels else None,
             style={
                 "marker": {
                     "symbol": "circle",
@@ -889,12 +918,13 @@ def render(
         )
 
     # Blank labels are skipped, so the overridden ones get placed by hand
-    p.constellation_labels(
-        label_fn=lambda c: (
-            "" if c.iau_id in CONSTELLATION_LABEL_POSITIONS else Constellation.get_label(c)
+    if labels:
+        p.constellation_labels(
+            label_fn=lambda c: (
+                "" if c.iau_id in CONSTELLATION_LABEL_POSITIONS else Constellation.get_label(c)
+            )
         )
-    )
-    for iau_id in constellations:
+    for iau_id in constellations if labels else []:
         if iau_id in CONSTELLATION_LABEL_POSITIONS:
             ra, dec = CONSTELLATION_LABEL_POSITIONS[iau_id]
             p.text(
@@ -918,9 +948,13 @@ def plot_targets(
     targets: list[str],
     when: datetime,
     output_dir: str | Path = ".",
+    timestamp: bool = True,
+    labels: bool = True,
 ) -> Path:
     """Render a horizon view of `targets` as seen from `lat`/`lon` at `when`
-    (a timezone-aware local datetime). Returns the path of the PNG."""
+    (a timezone-aware local datetime). `timestamp` adds the date, time and
+    place in the lower right corner; `labels=False` leaves off every name.
+    Returns the path of the PNG."""
     if when.tzinfo is None:
         raise ValueError("`when` must be timezone-aware")
     if not targets:
@@ -961,8 +995,8 @@ def plot_targets(
     constellations = sorted(set(constellations) | set(landmarks_in_view(sky, altitude, azimuth)))
 
     # Canonical names, so "saturn barycenter" still files as "saturn"
-    labels = [t.label for t in resolved]
-    return render(
+    names = [t.label for t in resolved]
+    path = render(
         observer,
         sky,
         altitude,
@@ -971,8 +1005,11 @@ def plot_targets(
         asterisms,
         constellations,
         star_where=[_.magnitude < 4.5, _.constellation_id.isin(constellations)],
-        path=Path(output_dir) / output_filename(labels, when, lat, lon),
+        path=Path(output_dir) / output_filename(names, when, lat, lon),
+        labels=labels,
     )
+    annotate(path, footnote_text(when, lat, lon) if timestamp else None)
+    return path
 
 
 def twilight_times(
@@ -1216,14 +1253,19 @@ def plot_twilight_views(
     tz: str | None = None,
     output_dir: str | Path = ".",
     limiting_magnitude: float = LIMITING_MAGNITUDE,
+    title: bool = True,
+    timestamp: bool = True,
+    labels: bool = True,
 ) -> dict[str, Path]:
     """Render the sky before sunrise and after sunset on `day`: usually 1 hour
     from the Sun, or 2 if planets or the Moon are low and that shows more;
     looking east or west, whichever has more of interest (ties go to east in
     the morning and west in the evening). Shows the Moon and planets, stars
     and deep-sky objects at least as bright as `limiting_magnitude`, and
-    asterisms with their constellations. Returns {"morning": path,
-    "evening": path}."""
+    asterisms with their constellations. `title` names the direction and time
+    on the landscape, `timestamp` adds the date, time and place in the lower
+    right corner, and `labels=False` leaves off every name. Returns
+    {"morning": path, "evening": path}."""
     paths = {}
     for period, event in (("morning", "before sunrise"), ("evening", "after sunset")):
         hours, when, direction, scene = choose_twilight_moment(
@@ -1241,13 +1283,14 @@ def plot_twilight_views(
             path=Path(output_dir) / twilight_filename(when, lat, lon, period),
             ground=TITLED_GROUND,
             star_magnitude=limiting_magnitude,
+            labels=labels,
         )
-        lat_text = f"{abs(lat):.2f}°{'N' if lat >= 0 else 'S'}"
-        lon_text = f"{abs(lon):.2f}°{'E' if lon >= 0 else 'W'}"
-        footnote = (
-            f"{when:%a %b} {when.day}, {when:%Y} · "
-            f"{when.hour % 12 or 12}:{when:%M %p %Z} · {lat_text} {lon_text}"
+        annotate(
+            paths[period],
+            footnote_text(when, lat, lon) if timestamp else None,
+            f"Looking {direction}, {hours} hour{'s' if hours > 1 else ''} {event}"
+            if title
+            else None,
+            scene.altitude,
         )
-        title = f"Looking {direction}, {hours} hour{'s' if hours > 1 else ''} {event}"
-        add_title(paths[period], title, footnote, scene.altitude)
     return paths
