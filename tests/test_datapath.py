@@ -16,5 +16,5 @@ def test_platform_cache_otherwise(monkeypatch, tmp_path):
     monkeypatch.delenv("STARPLOT_DATA_PATH", raising=False)
     monkeypatch.setattr(horizonchart, "SHARED_DATA_PATH", tmp_path / "missing")
     path = horizonchart._data_path()
-    assert path.name == "horizonchart"
+    assert "horizonchart" in path.parts  # ...\horizonchart\Cache on Windows
     assert "missing" not in str(path)

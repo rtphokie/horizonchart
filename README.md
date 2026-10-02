@@ -8,7 +8,7 @@ Clean, 16:9 horizon-view sky charts built on [starplot](https://starplot.dev):
 - **Twilight views** for a date: the sky before sunrise and after sunset,
   looking east or west, whichever has more to see.
 
-![Finder chart: Saturn from Raleigh, NC, 10 PM on Oct 2, 2026](https://raw.githubusercontent.com/rtphokie/horizonchart/main/docs/finder-saturn.png)
+![Finder chart: Saturn from Monkey's Eyebrow, KY, 10 PM on Oct 2, 2026](https://raw.githubusercontent.com/rtphokie/horizonchart/main/docs/finder-saturn.png)
 
 ![Twilight view: looking east before sunrise from Ottawa, ON, Oct 2, 2026](https://raw.githubusercontent.com/rtphokie/horizonchart/main/docs/twilight-morning.png)
 
@@ -55,7 +55,7 @@ The first run downloads star and deep-sky catalogs and planetary ephemerides
 ### Finder chart for specific objects
 
 ```sh
-horizonchart target Saturn --location "Raleigh, NC" --time "2026-10-02 22:00"
+horizonchart target Saturn --location "Monkey's Eyebrow, KY" --time "2026-10-02 22:00"
 # -> saturn_20261002T2200_35.78N_78.64W.png
 
 horizonchart target Moon Pleiades -l "35.78N 78.64W" -t "2026-10-03 02:00"
@@ -88,11 +88,11 @@ horizonchart twilight --location "Ottawa, ON" --date 2026-10-02
 
 ### Common options
 
-| Option | Meaning |
-|---|---|
-| `-l, --location` | Coordinates (`35.78,-78.64`, `35.78N 78.64W`) or a place name (`"Raleigh, NC"`, `"Ottawa, ON"`) |
-| `--tz` | Time zone name; by default it's looked up from the location |
-| `-o, --output-dir` | Where to write PNGs (default: current directory) |
+| Option | Meaning                                                                                                  |
+|---|----------------------------------------------------------------------------------------------------------|
+| `-l, --location` | Coordinates (`35.19,-88.99`, `35.78N 78.64W`) or a place name (`"Monkey's Eyebrow, NC"`, `"Ottawa, ON"`) |
+| `--tz` | Time zone name; by default it's looked up from the location                                              |
+| `-o, --output-dir` | Where to write PNGs (default: current directory)                                                         |
 
 Place names are looked up with OpenStreetMap's
 [Nominatim](https://nominatim.org) service, at most one request per second,
