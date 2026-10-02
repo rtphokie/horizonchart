@@ -1,0 +1,47 @@
+[project]
+name = "horizonchart"
+version = "0.1.0"
+description = "Clean horizon-view sky charts: finder charts for planets, the Moon and deep-sky objects, and twilight views"
+readme = "README.md"
+authors = [
+    { name = "trice", email = "rtphokie@gmail.com" }
+]
+license = "MIT"
+license-files = ["LICENSE", "src/horizonchart/fonts/OFL.txt"]
+requires-python = ">=3.11"
+keywords = ["astronomy", "star chart", "sky chart", "planets", "stargazing", "starplot"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+dependencies = [
+    "geopy>=2.5.0",
+    "pillow>=10.1",
+    "platformdirs>=4.0",
+    "shapely>=2.0",
+    "skyfield>=1.49",
+    # Uses some starplot internals (see README), so stay within the tested release
+    "starplot>=0.21.1,<0.22",
+    "timezonefinder>=9.0.0",
+]
+
+[project.scripts]
+horizonchart = "horizonchart.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
