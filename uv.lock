@@ -600,6 +600,7 @@ dependencies = [
     { name = "skyfield" },
     { name = "starplot" },
     { name = "timezonefinder" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
 
 [package.dev-dependencies]
@@ -616,6 +617,7 @@ requires-dist = [
     { name = "skyfield", specifier = ">=1.49" },
     { name = "starplot", specifier = ">=0.21.1,<0.22" },
     { name = "timezonefinder", specifier = ">=9.0.0" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
 
 [package.metadata.requires-dev]

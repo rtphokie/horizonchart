@@ -32,7 +32,14 @@ dependencies = [
     # Uses some starplot internals (see README), so stay within the tested release
     "starplot>=0.21.1,<0.22",
     "timezonefinder>=9.0.0",
+    # zoneinfo needs an IANA time zone database, which Windows doesn't ship
+    "tzdata; sys_platform == 'win32'",
 ]
+
+[project.urls]
+Homepage = "https://github.com/rtphokie/horizonchart"
+Repository = "https://github.com/rtphokie/horizonchart"
+Issues = "https://github.com/rtphokie/horizonchart/issues"
 
 [project.scripts]
 horizonchart = "horizonchart.cli:main"

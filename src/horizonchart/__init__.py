@@ -22,7 +22,7 @@ def _data_path() -> Path:
         return SHARED_DATA_PATH
     from platformdirs import user_cache_path
 
-    return user_cache_path("horizonchart")
+    return user_cache_path("horizonchart", appauthor=False)
 
 
 DATA_PATH = _data_path()

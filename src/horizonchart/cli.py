@@ -18,7 +18,7 @@ GEOCODE_CACHE = DATA_PATH / "horizonchart-geocode.json"
 # Nominatim's usage policy asks applications to identify themselves, ideally
 # with a contact address (set HORIZONCHART_CONTACT, e.g. to an email address),
 # and to make at most one request per second
-GEOCODER_URL = "https://pypi.org/project/horizonchart/"
+GEOCODER_URL = "https://github.com/rtphokie/horizonchart"
 GEOCODER_MIN_DELAY = 1.0
 
 # "35.78,-78.64", "35.78 -78.64" or "35.78N 78.64W" (comma optional)
@@ -65,7 +65,7 @@ def geocode(place: str) -> tuple[float, float]:
 
 
 def geocoder_user_agent() -> str:
-    """e.g. "horizonchart/0.1.0 (+https://pypi.org/project/horizonchart/; you@example.com)"."""
+    """e.g. "horizonchart/0.1.0 (+https://github.com/rtphokie/horizonchart; you@example.com)"."""
     contact = os.environ.get("HORIZONCHART_CONTACT")
     details = f"+{GEOCODER_URL}" + (f"; {contact}" if contact else "")
     return f"horizonchart/{__version__} ({details})"

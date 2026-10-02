@@ -8,9 +8,9 @@ Clean, 16:9 horizon-view sky charts built on [starplot](https://starplot.dev):
 - **Twilight views** for a date: the sky before sunrise and after sunset,
   looking east or west, whichever has more to see.
 
-![Finder chart: Saturn from Raleigh, NC, 10 PM on Oct 2, 2026](docs/finder-saturn.png)
+![Finder chart: Saturn from Raleigh, NC, 10 PM on Oct 2, 2026](https://raw.githubusercontent.com/rtphokie/horizonchart/main/docs/finder-saturn.png)
 
-![Twilight view: looking east before sunrise from Ottawa, ON, Oct 2, 2026](docs/twilight-morning.png)
+![Twilight view: looking east before sunrise from Ottawa, ON, Oct 2, 2026](https://raw.githubusercontent.com/rtphokie/horizonchart/main/docs/twilight-morning.png)
 
 ## Install
 
@@ -191,5 +191,5 @@ minute or two.
 
 ## License
 
-MIT; see [LICENSE](LICENSE). The bundled Inter font is under the SIL Open Font
+MIT; see [LICENSE](https://github.com/rtphokie/horizonchart/blob/main/LICENSE). The bundled Inter font is under the SIL Open Font
 License 1.1.
