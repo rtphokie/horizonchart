@@ -17,6 +17,7 @@ from zoneinfo import ZoneInfo
 
 # Sets starplot's data path; must come before starplot is imported
 from horizonchart import DATA_PATH
+from horizonchart.landscape import LANDSCAPES, draw_landscape
 
 from PIL import Image, ImageDraw, ImageFont
 from shapely import affinity
@@ -467,9 +468,10 @@ def frame(points_altaz: list[tuple[float, float]]) -> tuple[tuple, tuple]:
     return (0, alt_hi), (az_min, az_min + az_span)
 
 
-def crop_to_aspect(path: Path, aspect: float = ASPECT) -> None:
+def crop_to_aspect(path: Path, aspect: float = ASPECT) -> tuple[int, int]:
     """Trim a PNG to `aspect`: excess height comes off the top (keeping the
-    horizon), excess width comes off both sides equally."""
+    horizon), excess width comes off both sides equally. Returns the (left,
+    top) of the part kept."""
     with Image.open(path) as im:
         w, h = im.size
         if w / h < aspect:
@@ -478,6 +480,7 @@ def crop_to_aspect(path: Path, aspect: float = ASPECT) -> None:
             trim = (w - round(h * aspect)) // 2
             box = (trim, 0, trim + round(h * aspect), h)
         im.crop(box).save(path)
+    return box[0], box[1]
 
 
 # Inter (SIL Open Font License), bundled so titles look the same everywhere
@@ -716,13 +719,15 @@ def render(
     ground: tuple[float, float] = (3.5, 6),
     star_magnitude: float | None = None,
     labels: bool = True,
+    landscape: str = "hills",
 ) -> Path:
     """Draw a horizon view and export it to `path` as a 16:9 PNG. `star_where`
     selects the background stars (`star_magnitude` is its magnitude limit, if
     it has one, used to decide which stars can be labeled); stars in the
     drawn constellations and asterisms, and the brightest stars in view, are
     always drawn. `labels=False` leaves off every name: targets, stars,
-    asterisms and constellations."""
+    asterisms and constellations. `landscape` is one of LANDSCAPES: starplot's
+    plain hills, or silhouetted trees, houses or city buildings."""
     az_scale = (azimuth[1] - azimuth[0]) / REFERENCE_AZ_SPAN
     center_az = (azimuth[0] + azimuth[1]) / 2
     asterism_stars = [s for _asterism, lines in asterisms for line in lines for s in line]
@@ -937,8 +942,20 @@ def render(
                 ),
             )
 
+    # Where the targets land in the PNG, so silhouettes can stay below them
+    # (starplot internals: _prepare_coords, canvas._to_display)
+    target_points = [p.canvas._to_display(*p._prepare_coords(t.ra, t.dec)) for t in targets]
+
     p.export(str(path))
-    crop_to_aspect(path)
+    with Image.open(path) as im:
+        border = ((im.width - p.canvas.width) / 2, (im.height - p.canvas.height) / 2)
+    left, top = crop_to_aspect(path)
+    draw_landscape(
+        path,
+        landscape,
+        seed=f"{observer.lat:.2f},{observer.lon:.2f}",
+        keep_clear=[(x + border[0] - left, y + border[1] - top) for x, y in target_points],
+    )
     return path
 
 
@@ -950,11 +967,12 @@ def plot_targets(
     output_dir: str | Path = ".",
     timestamp: bool = True,
     labels: bool = True,
+    landscape: str = "hills",
 ) -> Path:
     """Render a horizon view of `targets` as seen from `lat`/`lon` at `when`
     (a timezone-aware local datetime). `timestamp` adds the date, time and
-    place in the lower right corner; `labels=False` leaves off every name.
-    Returns the path of the PNG."""
+    place in the lower right corner; `labels=False` leaves off every name;
+    `landscape` is one of LANDSCAPES. Returns the path of the PNG."""
     if when.tzinfo is None:
         raise ValueError("`when` must be timezone-aware")
     if not targets:
@@ -1007,6 +1025,7 @@ def plot_targets(
         star_where=[_.magnitude < 4.5, _.constellation_id.isin(constellations)],
         path=Path(output_dir) / output_filename(names, when, lat, lon),
         labels=labels,
+        landscape=landscape,
     )
     annotate(path, footnote_text(when, lat, lon) if timestamp else None)
     return path
@@ -1256,6 +1275,7 @@ def plot_twilight_views(
     title: bool = True,
     timestamp: bool = True,
     labels: bool = True,
+    landscape: str = "hills",
 ) -> dict[str, Path]:
     """Render the sky before sunrise and after sunset on `day`: usually 1 hour
     from the Sun, or 2 if planets or the Moon are low and that shows more;
@@ -1264,8 +1284,8 @@ def plot_twilight_views(
     and deep-sky objects at least as bright as `limiting_magnitude`, and
     asterisms with their constellations. `title` names the direction and time
     on the landscape, `timestamp` adds the date, time and place in the lower
-    right corner, and `labels=False` leaves off every name. Returns
-    {"morning": path, "evening": path}."""
+    right corner, `labels=False` leaves off every name, and `landscape` is one
+    of LANDSCAPES. Returns {"morning": path, "evening": path}."""
     paths = {}
     for period, event in (("morning", "before sunrise"), ("evening", "after sunset")):
         hours, when, direction, scene = choose_twilight_moment(
@@ -1284,6 +1304,7 @@ def plot_twilight_views(
             ground=TITLED_GROUND,
             star_magnitude=limiting_magnitude,
             labels=labels,
+            landscape=landscape,
         )
         annotate(
             paths[period],

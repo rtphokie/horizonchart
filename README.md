@@ -98,6 +98,7 @@ horizonchart twilight --location "Ottawa, ON" --date 2026-10-02
 | `-l, --location` | Coordinates (`35.19,-88.99`, `47.99N 84.77W`) or a place name (`"Monkey's Eyebrow, NC"`, `"Wawa, ON"`) |
 | `--tz` | Time zone name; by default it's looked up from the location                                            |
 | `-o, --output-dir` | Where to write PNGs (default: current directory)                                                       |
+| `--landscape` | What's along the horizon: `hills` (default, plain ground), or silhouetted `trees`, `suburban` (houses and trees) or `city` (buildings with lit windows) |
 | `--no-timestamp` | Leave off the date, time and location in the lower right corner                                        |
 | `--no-labels` | Leave off all names: planets, the Moon, stars, deep-sky objects, asterisms and constellations          |
 
@@ -123,9 +124,9 @@ plot_targets(47.99, -84.77, ["Saturn"],
 plot_twilight_views(47.99, -84.77, date(2026, 10, 2))
 # {"morning": Path(...), "evening": Path(...)}
 
-# The command line's --no-title, --no-timestamp and --no-labels
-plot_targets(..., timestamp=False, labels=False)
-plot_twilight_views(..., title=False, timestamp=False, labels=False)
+# The command line's --landscape, --no-title, --no-timestamp and --no-labels
+plot_targets(..., landscape="trees", timestamp=False, labels=False)
+plot_twilight_views(..., landscape="city", title=False, timestamp=False, labels=False)
 ```
 
 ## How charts are composed
@@ -144,6 +145,11 @@ plot_twilight_views(..., title=False, timestamp=False, labels=False)
 - At most five stars are labeled, chosen from a priority list of well-known
   names (Polaris, Sirius, Betelgeuse, Vega, …). Other stars are unlabeled.
 - The date, time and location are in small text in the lower right.
+- With `--landscape trees`, `suburban` or `city`, the ground becomes a dark
+  silhouette with trees, houses or buildings along the hilltops. The scene is
+  generated from the location, so the same place always gets the same
+  skyline. Silhouettes are kept below the targets so they're never hidden,
+  though they may cover stars near the horizon, as real ones would.
 
 **Finder charts**
 
