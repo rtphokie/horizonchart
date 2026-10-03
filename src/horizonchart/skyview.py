@@ -37,7 +37,7 @@ from starplot import (
     _,
     callables,
 )
-from starplot.styles import PlotStyle, extensions, gradients
+from starplot.styles import PlotStyle, extensions
 from timezonefinder import TimezoneFinder
 
 load = Loader(str(DATA_PATH))
@@ -486,6 +486,15 @@ TITLE_SIZE = 0.05  # title text height as a fraction of image height
 FOOTNOTE_SIZE = 0.018
 FOOTNOTE_MARGIN = 0.015  # from the bottom and right edges
 FOOTNOTE_COLOR = "#a0a0a8"
+# The ground: starplot's brown gradient (gradients.GROUND) darkened to near
+# black, the way land looks against a twilight or night sky
+GROUND_STOPS = (
+    (0.0, "#251A12"),
+    (0.15, "#20150F"),
+    (0.4, "#19110D"),
+    (0.7, "#100A07"),
+    (1.0, "#090604"),
+)
 # Twilight views draw a taller landscape so the title fits on it: hills
 # between these altitudes, which is below where twilight haze hides things
 TITLED_GROUND = (6, 9)
@@ -748,7 +757,7 @@ def render(
     p.ground(
         min_altitude=ground[0],
         max_altitude=ground[1],
-        style__fill={"stops": gradients.GROUND, "type": "linear"},
+        style__fill={"stops": GROUND_STOPS, "type": "linear"},
     )
 
     p.constellations(where=[_.iau_id.isin(constellations)])

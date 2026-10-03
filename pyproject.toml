@@ -1,6 +1,6 @@
 [project]
 name = "horizonchart"
-version = "0.1.0"
+version = "0.1.1"
 description = "Clean horizon-view sky charts: finder charts for planets, the Moon and deep-sky objects, and twilight views"
 readme = "README.md"
 authors = [
