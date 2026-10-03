@@ -108,10 +108,9 @@ def test_geocoder_identifies_itself(monkeypatch):
 @pytest.mark.parametrize(
     "argv, expected",
     [
-        ([], {"timestamp": True, "labels": True, "landscape": "hills"}),
-        (["--no-timestamp"], {"timestamp": False, "labels": True, "landscape": "hills"}),
-        (["--no-labels"], {"timestamp": True, "labels": False, "landscape": "hills"}),
-        (["--landscape", "city"], {"timestamp": True, "labels": True, "landscape": "city"}),
+        ([], {"timestamp": True, "labels": True}),
+        (["--no-timestamp"], {"timestamp": False, "labels": True}),
+        (["--no-labels"], {"timestamp": True, "labels": False}),
     ],
 )
 def test_target_display_flags(tmp_path, monkeypatch, argv, expected):
@@ -129,11 +128,11 @@ def test_target_display_flags(tmp_path, monkeypatch, argv, expected):
 @pytest.mark.parametrize(
     "argv, expected",
     [
-        ([], {"title": True, "timestamp": True, "labels": True, "landscape": "hills"}),
-        (["--no-title"], {"title": False, "timestamp": True, "labels": True, "landscape": "hills"}),
+        ([], {"title": True, "timestamp": True, "labels": True}),
+        (["--no-title"], {"title": False, "timestamp": True, "labels": True}),
         (
-            ["--no-title", "--no-timestamp", "--no-labels", "--landscape", "trees"],
-            {"title": False, "timestamp": False, "labels": False, "landscape": "trees"},
+            ["--no-title", "--no-timestamp", "--no-labels"],
+            {"title": False, "timestamp": False, "labels": False},
         ),
     ],
 )
@@ -141,7 +140,7 @@ def test_twilight_display_flags(tmp_path, monkeypatch, argv, expected):
     seen = {}
 
     def fake_plot_twilight_views(*args, **kwargs):
-        seen.update({k: kwargs[k] for k in ("title", "timestamp", "labels", "landscape")})
+        seen.update({k: kwargs[k] for k in ("title", "timestamp", "labels")})
         return {"morning": tmp_path / "m.png", "evening": tmp_path / "e.png"}
 
     monkeypatch.setattr(cli, "plot_twilight_views", fake_plot_twilight_views)
@@ -167,8 +166,3 @@ def test_default_target_time_is_two_hours_after_sunset(monkeypatch):
     assert cli.default_target_time(35.7796, -78.6382, zone) == datetime(
         2026, 10, 2, 21, 0, tzinfo=zone
     )
-
-
-def test_unknown_landscape_rejected():
-    with pytest.raises(SystemExit):
-        cli.build_parser().parse_args(["target", "Saturn", "-l", "0,0", "--landscape", "moon"])

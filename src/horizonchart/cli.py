@@ -13,7 +13,6 @@ from timezonefinder import TimezoneFinder
 
 from horizonchart import DATA_PATH, __version__
 from horizonchart.skyview import (
-    LANDSCAPES,
     LIMITING_MAGNITUDE,
     plot_targets,
     plot_twilight_views,
@@ -141,13 +140,6 @@ def build_parser() -> argparse.ArgumentParser:
         "-o", "--output-dir", default=".", type=Path, help="where to write the PNG"
     )
     common.add_argument(
-        "--landscape",
-        choices=LANDSCAPES,
-        default="hills",
-        help="what's drawn along the horizon: plain hills (default), or "
-        "silhouetted trees, suburban houses and trees, or city buildings",
-    )
-    common.add_argument(
         "--no-timestamp",
         dest="timestamp",
         action="store_false",
@@ -231,7 +223,6 @@ def main(argv: list[str] | None = None) -> int:
                     args.output_dir,
                     timestamp=args.timestamp,
                     labels=args.labels,
-                    landscape=args.landscape,
                 )
             ]
         else:
@@ -246,7 +237,6 @@ def main(argv: list[str] | None = None) -> int:
                 title=args.title,
                 timestamp=args.timestamp,
                 labels=args.labels,
-                landscape=args.landscape,
             )
             paths = list(views.values())
     except ValueError as error:

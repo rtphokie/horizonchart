@@ -6,7 +6,6 @@ from PIL import Image
 
 from starplot import DSO, Observer, Star
 from horizonchart import skyview
-from horizonchart.landscape import SILHOUETTE
 from horizonchart.skyview import (
     ASPECT,
     ASTERISMS,
@@ -327,12 +326,3 @@ def test_target_view_timestamp_and_labels_can_be_left_off(tmp_path):
     assert lower_right(full) != lower_right(bare)
     # Without labels or timestamp, less is drawn
     assert bare.stat().st_size < full.stat().st_size
-
-
-def test_landscape_renders(tmp_path):
-    path = plot_targets(
-        *RALEIGH, ["Saturn"], OCT_2_2026_10PM, output_dir=tmp_path, landscape="suburban"
-    )
-    with Image.open(path) as im:
-        w, h = im.size
-        assert im.convert("RGB").getpixel((w // 2, h - 20)) == SILHOUETTE
