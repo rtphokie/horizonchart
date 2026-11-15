@@ -326,3 +326,35 @@ def test_target_view_timestamp_and_labels_can_be_left_off(tmp_path):
     assert lower_right(full) != lower_right(bare)
     # Without labels or timestamp, less is drawn
     assert bare.stat().st_size < full.stat().st_size
+
+
+def test_close_targets_labeled_away_from_each_other():
+    # Mars and Jupiter 1.2 degrees apart at dawn, Nov 16, 2026: whichever
+    # is labeled first, neither label may take the side facing the other
+    when = datetime(2026, 11, 16, 5, 0, tzinfo=ZoneInfo("America/New_York"))
+    observer = Observer(lat=36.0, lon=-79.0, dt=when)
+    sky = skyview.Sky(36.0, -79.0, when)
+    mars, jupiter = (resolve_target(n, observer) for n in ("Mars", "Jupiter"))
+    azimuth = (35.0, 145.0)
+
+    side_by_side = {mars: (2738, 454), jupiter: (2782, 461)}
+    left = skyview.target_anchors(mars, sky, azimuth, side_by_side)
+    right = skyview.target_anchors(jupiter, sky, azimuth, side_by_side)
+    assert not any(a.endswith("right") for a in left[:3])
+    assert not any(a.endswith("left") for a in right[:3])
+    assert "top_right" in left and "bottom_right" not in left
+    assert "bottom_left" in right and "top_left" not in right
+
+    stacked = {mars: (2760, 400), jupiter: (2765, 470)}
+    upper = skyview.target_anchors(mars, sky, azimuth, stacked)
+    lower = skyview.target_anchors(jupiter, sky, azimuth, stacked)
+    assert all(a.startswith("top") for a in upper[:2])
+    assert all(a.startswith("bottom") for a in lower[:2])
+    assert not any(a.startswith("bottom") for a in upper)
+    assert not any(a.startswith("top") for a in lower)
+
+    # Far apart, each is labeled toward the middle of the view as usual
+    apart = {mars: (1000, 454), jupiter: (3000, 461)}
+    assert skyview.target_anchors(mars, sky, azimuth, apart) == (
+        skyview.LEFT_ANCHORS + skyview.RIGHT_ANCHORS
+    )

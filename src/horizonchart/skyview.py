@@ -37,7 +37,7 @@ from starplot import (
     _,
     callables,
 )
-from starplot.styles import PlotStyle, extensions
+from starplot.styles import LabelStyle, PlotStyle, extensions
 from timezonefinder import TimezoneFinder
 
 load = Loader(str(DATA_PATH))
@@ -111,6 +111,16 @@ BRIGHT_STAR_FONT_SIZE = 56
 # Centered anchors are left out: they start the text on the marker.
 RIGHT_ANCHORS = ["right_center", "bottom_right", "top_right"]
 LEFT_ANCHORS = ["left_center", "bottom_left", "top_left"]
+# For a target with another just below or above it
+ABOVE_ANCHORS = ["top_right", "top_left"]
+BELOW_ANCHORS = ["bottom_right", "bottom_left"]
+# Targets closer than this (display px) are labeled away from each other
+NEIGHBOR_DISTANCE = 600
+# Gaps (px) between a target's marker and a label beside it: the usual one,
+# then farther out if every side is taken; and between the marker and a
+# label above or below it
+TARGET_LABEL_GAPS = (40, 90)
+VERTICAL_LABEL_GAP = 8
 # The Moon and planets are drawn in roughly their naked-eye colors, kept light
 # enough to read against the dark sky
 BODY_COLORS = {
@@ -712,6 +722,112 @@ def choose_star_labels(
     return [s.hip for s in sorted(candidates, key=rank)[:MAX_STAR_LABELS]]
 
 
+def target_anchors(
+    target: Target,
+    sky: Sky,
+    azimuth: tuple[float, float],
+    display: dict[Target, tuple[float, float]],
+) -> list[str]:
+    """Label positions for `target`, tried in order. Normally toward the
+    middle of the view, so the label isn't cut off at an edge. With another
+    target within NEIGHBOR_DISTANCE px, only away from the nearest one: the
+    left one of a close pair on its left and the right one on its right, and
+    if that side is taken (by an asterism's label, say), the upper one above
+    and the lower one below. The two labels then never compete for the same
+    space, whichever is placed first."""
+    center_az = (azimuth[0] + azimuth[1]) / 2
+    _alt, az = sky.altaz(target.ra, target.dec)
+    az_offset = ((az - center_az + 180) % 360) - 180
+    anchors = RIGHT_ANCHORS + LEFT_ANCHORS
+    if az_offset > (azimuth[1] - azimuth[0]) / 6:  # outer third on the right
+        anchors = LEFT_ANCHORS + RIGHT_ANCHORS
+
+    x, y = display[target]
+    others = [xy for t, xy in display.items() if t != target]
+    if not others:
+        return anchors
+    ox, oy = min(others, key=lambda o: math.hypot(o[0] - x, o[1] - y))
+    dx, dy = ox - x, oy - y  # display y grows downward
+    if math.hypot(dx, dy) > NEIGHBOR_DISTANCE:
+        return anchors
+    sideways = LEFT_ANCHORS if dx > 0 else RIGHT_ANCHORS
+    vertical = ABOVE_ANCHORS if dy > 0 else BELOW_ANCHORS
+    if abs(dx) >= abs(dy):
+        return sideways + [a for a in vertical if a not in sideways]
+    toward = "bottom" if dy > 0 else "top"
+    return vertical + [a for a in sideways if not a.startswith(toward)]
+
+
+def label_targets(
+    p: HorizonPlot,
+    sky: Sky,
+    targets: list[Target],
+    sizes: dict[Target, float],
+    azimuth: tuple[float, float],
+) -> None:
+    """Label each target beside its (already drawn) marker. Each label tries
+    its sides from target_anchors() without landing on another label or
+    another target's marker, then the same sides farther out, and only then
+    is drawn on its first side regardless. Faint stars and constellation
+    lines may be covered: that beats jumping somewhere less obvious. Uses
+    starplot internals: _prepare_coords, canvas._to_display, _labels_rtree
+    and _offset_from_marker. The markers stay in the label index afterward,
+    so the constellation labels drawn later keep off them too."""
+    shown = [t for t in targets if p.in_bounds(t.ra, t.dec)]
+    display = {t: p.canvas._to_display(*p._prepare_coords(t.ra, t.dec)) for t in shown}
+    # The other targets' markers count as labels while each label is placed
+    # (the marker index can't be used: labels are allowed over faint stars and
+    # asterism lines, which are in it too)
+    boxes = {}
+    for i, t in enumerate(shown):
+        x, y = display[t]
+        r = sizes[t] * p.scale / 2
+        boxes[t] = (i, (x - r, y - r, x + r, y + r))
+        p._labels_rtree.insert(i, boxes[t][1])
+
+    for target in shown:
+        color = BODY_COLORS.get(target.label, TARGET_COLORS[target.kind])
+        anchors = target_anchors(target, sky, azimuth, display)
+        p._labels_rtree.delete(*boxes[target])
+        before = p._labels_rtree.get_size()
+        # Each side at the usual gap, then each farther out, then the first
+        # side at the usual gap, forced
+        attempts = [(a, gap) for gap in TARGET_LABEL_GAPS for a in anchors]
+        attempts.append((anchors[0], TARGET_LABEL_GAPS[0]))
+        for i, (anchor, gap) in enumerate(attempts):
+            last = i == len(attempts) - 1
+            # Starplot's automatic vertical offset centers the label on the
+            # marker's top or bottom edge, which for text much taller than
+            # the marker is hardly above or below it at all; above and below
+            # instead clear the marker by the gap
+            vertical = anchor not in ("left_center", "right_center")
+            style = LabelStyle(
+                font_size=target.font_size,
+                font_weight=700,
+                fill=color,
+                anchor_point=anchor,
+                opacity=FAINT_OPACITY if target.faint else 1.0,
+                offset_x=gap,
+                offset_y=sizes[target] / 2 + VERTICAL_LABEL_GAP if vertical else "auto",
+                zorder=1000,
+            )
+            p.text(
+                target.label,
+                target.ra,
+                target.dec,
+                style=p._offset_from_marker(style, target.label, sizes[target]),
+                collision_handler=CollisionHandler(
+                    allow_constellation_line_collisions=True,
+                    allow_marker_collisions=True,
+                    anchor_fallbacks=[anchor],
+                    plot_on_fail=last,
+                ),
+            )
+            if p._labels_rtree.get_size() > before:
+                break
+        p._labels_rtree.insert(*boxes[target])
+
+
 def render(
     observer: Observer,
     sky: Sky,
@@ -733,7 +849,6 @@ def render(
     always drawn. `labels=False` leaves off every name: targets, stars,
     asterisms and constellations."""
     az_scale = (azimuth[1] - azimuth[0]) / REFERENCE_AZ_SPAN
-    center_az = (azimuth[0] + azimuth[1]) / 2
     asterism_stars = [s for _asterism, lines in asterisms for line in lines for s in line]
 
     style = PlotStyle().extend(
@@ -879,52 +994,32 @@ def render(
         gid_labels="bright-stars-labels",
     )
 
+    # Every target's marker goes down before any target's label, so a label
+    # can steer clear of the other targets (a Moon-planet or planet-planet
+    # conjunction puts two markers almost on top of each other)
+    sizes = {}
     for target in targets:
         color = BODY_COLORS.get(target.label, TARGET_COLORS[target.kind])
-        # Label toward the middle of the view so it isn't cut off at an edge
-        _alt, az = sky.altaz(target.ra, target.dec)
-        az_offset = ((az - center_az + 180) % 360) - 180
-        anchors = RIGHT_ANCHORS + LEFT_ANCHORS
-        if az_offset > (azimuth[1] - azimuth[0]) / 6:  # outer third on the right
-            anchors = LEFT_ANCHORS + RIGHT_ANCHORS
         # Deep-sky objects get a ring so the marker doesn't hide the object
         hollow = target.kind == "dso"
-        opacity = FAINT_OPACITY if target.faint else 1.0
-        size = 60 if hollow else FAINT_MARKER_SIZE if target.faint else 40
+        sizes[target] = 60 if hollow else FAINT_MARKER_SIZE if target.faint else 40
         p.marker(
             ra=target.ra,
             dec=target.dec,
-            label=target.label if labels else None,
             style={
                 "marker": {
                     "symbol": "circle",
-                    "size": size,
+                    "size": sizes[target],
                     "fill": None if hollow else color,
                     "stroke": color if hollow else "#ffffff",
                     "stroke_width": 4 if hollow else 2,
-                    "opacity": opacity,
-                    "zorder": 1000,
-                },
-                "label": {
-                    "font_size": target.font_size,
-                    "font_weight": 700,
-                    "fill": color,
-                    "anchor_point": anchors[0],
-                    "opacity": opacity,
-                    "offset_x": 40,
-                    "offset_y": "auto",
+                    "opacity": FAINT_OPACITY if target.faint else 1.0,
                     "zorder": 1000,
                 },
             },
-            # Covering a faint star or crossing a constellation line beats
-            # jumping somewhere less obvious
-            collision_handler=CollisionHandler(
-                allow_constellation_line_collisions=True,
-                allow_marker_collisions=True,
-                plot_on_fail=True,
-                anchor_fallbacks=anchors,
-            ),
         )
+    if labels:
+        label_targets(p, sky, targets, sizes, azimuth)
 
     # Blank labels are skipped, so the overridden ones get placed by hand
     if labels:
