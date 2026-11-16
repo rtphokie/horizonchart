@@ -85,19 +85,19 @@ def test_round_within_keeps_to_the_night():
     assert round_within(start + timedelta(hours=1), start, end).time().isoformat() == "18:30:00"
 
 
-def test_leonids_2026():
-    # Charted at the last half hour before civil twilight (the radiant is
-    # still climbing then); the Moon sets at 11:21 pm, before the radiant
-    # rises, so the usual pre-dawn advice stands
+def test_radiant_still_climbing_at_dawn_falls_back_to_before_sunrise():
+    # The Leonid radiant is highest after twilight begins; the Moon sets at
+    # 11:21 pm, before the radiant rises, so that's the advice too
     when, advice = viewing_plan(*RALEIGH, find_shower("Leonids"), date(2026, 11, 17))
-    assert when == datetime(2026, 11, 17, 6, 0, tzinfo=EASTERN)
-    assert advice == "Look overhead 2 hours before sunrise, around 5:00 am"
+    assert when == datetime(2026, 11, 17, 5, 0, tzinfo=EASTERN)
+    assert advice == "Look southeast 2 hours before sunrise"
 
 
 def test_chart_time_is_when_the_radiant_is_highest():
     # The Geminid radiant crosses the meridian around 2 am
-    when, _advice = viewing_plan(*RALEIGH, find_shower("Geminids"), date(2026, 12, 14))
+    when, advice = viewing_plan(*RALEIGH, find_shower("Geminids"), date(2026, 12, 14))
     assert when == datetime(2026, 12, 14, 2, 0, tzinfo=EASTERN)
+    assert advice == "Look overhead around 2:00 am"
 
 
 def test_direction_is_for_the_chart_time():
@@ -105,7 +105,7 @@ def test_direction_is_for_the_chart_time():
     when = datetime(2026, 11, 17, 1, 0, tzinfo=EASTERN)
     assert viewing_plan(*RALEIGH, leonids, date(2026, 11, 17), when=when) == (
         when,
-        "Look east 2 hours before sunrise, around 5:00 am",
+        "Look east 2 hours before sunrise",
     )
 
 
@@ -116,16 +116,18 @@ def test_weak_shower_starts_at_moonset():
 
 
 def test_strong_shower_ignores_the_moon():
-    _when, advice = viewing_plan(*RALEIGH, find_shower("Geminids"), date(2026, 12, 14))
-    assert advice.endswith("2 hours before sunrise, around 5:30 am")
+    # The Moon sets at 2:3x am, but the Perseids have plenty of meteors anyway
+    _when, advice = viewing_plan(*RALEIGH, find_shower("Perseids"), date(2026, 8, 13))
+    assert advice == "Look northeast 2 hours before sunrise"
 
 
 def test_advice_is_never_after_civil_twilight_begins(monkeypatch):
     # Where twilight is long, 2 hours before sunrise can already be twilight;
     # here, any time before sunrise is
     monkeypatch.setattr(meteors, "HOURS_BEFORE_SUNRISE", 0)
-    _when, advice = viewing_plan(*RALEIGH, find_shower("Geminids"), date(2026, 12, 14))
-    assert advice.endswith("before dawn, around 6:30 am")
+    when, advice = viewing_plan(*RALEIGH, find_shower("Leonids"), date(2026, 11, 17))
+    assert when == datetime(2026, 11, 17, 6, 0, tzinfo=EASTERN)
+    assert advice == "Look overhead before dawn"
 
 
 def test_radiant_that_never_rises_at_night():
@@ -135,7 +137,7 @@ def test_radiant_that_never_rises_at_night():
 
 def test_plot_meteor_shower(tmp_path):
     path = plot_meteor_shower(*RALEIGH, "Leonids", date(2026, 11, 17), output_dir=tmp_path)
-    assert path.name == "leonids_20261117T0600_35.78N_78.64W.png"
+    assert path.name == "leonids_20261117T0500_35.78N_78.64W.png"
     with Image.open(path) as im:
         assert im.width / im.height == pytest.approx(ASPECT, abs=0.01)
 
@@ -145,10 +147,20 @@ def test_meteors_command(tmp_path, capsys):
         ["meteors", "Leonids", "-l", "35.78N 78.64W", "-d", "2026-11-17", "-o", str(tmp_path)]
     )
     assert status == 0
-    assert capsys.readouterr().out.strip().endswith("leonids_20261117T0600_35.78N_78.64W.png")
+    assert capsys.readouterr().out.strip().endswith("leonids_20261117T0500_35.78N_78.64W.png")
 
 
 def test_meteors_command_reports_unknown_showers(capsys):
     status = cli.main(["meteors", "Krypton", "-l", "35.78N 78.64W", "-d", "2026-11-17"])
     assert status == 1
     assert "Unknown meteor shower" in capsys.readouterr().err
+
+
+def test_meteors_command_extras_are_opt_in(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli, "plot_meteor_shower", lambda *a, **kw: calls.append(kw) or "x.png")
+    base = ["meteors", "Leonids", "-l", "35.78N 78.64W", "-o", str(tmp_path)]
+    cli.main(base)
+    cli.main(base + ["--timestamp", "--asterism-labels", "--constellation-labels"])
+    flags = ("timestamp", "asterism_labels", "constellation_labels")
+    assert [[kw[f] for f in flags] for kw in calls] == [[False] * 3, [True] * 3]

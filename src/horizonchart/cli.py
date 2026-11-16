@@ -141,12 +141,6 @@ def build_parser() -> argparse.ArgumentParser:
         "-o", "--output-dir", default=".", type=Path, help="where to write the PNG"
     )
     common.add_argument(
-        "--no-timestamp",
-        dest="timestamp",
-        action="store_false",
-        help="leave off the date, time and place in the lower right corner",
-    )
-    common.add_argument(
         "--no-labels",
         dest="labels",
         action="store_false",
@@ -154,9 +148,19 @@ def build_parser() -> argparse.ArgumentParser:
         "asterisms and constellations",
     )
 
+    # Finder and twilight charts have the date, time and place unless asked not
+    # to; meteor shower charts only when asked
+    stamped = argparse.ArgumentParser(add_help=False)
+    stamped.add_argument(
+        "--no-timestamp",
+        dest="timestamp",
+        action="store_false",
+        help="leave off the date, time and place in the lower right corner",
+    )
+
     target = commands.add_parser(
         "target",
-        parents=[common],
+        parents=[common, stamped],
         help="finder chart for one or more objects at a given time",
         description="Finder chart for planets, the Moon, stars or deep-sky objects.",
     )
@@ -175,7 +179,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     twilight = commands.add_parser(
         "twilight",
-        parents=[common],
+        parents=[common, stamped],
         help="morning and evening twilight views for a date",
         description=(
             "Views before sunrise and after sunset, looking east or west, "
@@ -222,6 +226,21 @@ def build_parser() -> argparse.ArgumentParser:
         "the shower's peak)",
     )
     meteors.add_argument(
+        "--timestamp",
+        action="store_true",
+        help="add the date, time and place in the lower right corner",
+    )
+    meteors.add_argument(
+        "--asterism-labels",
+        action="store_true",
+        help="name the highlighted asterisms (Sickle of Leo, ...)",
+    )
+    meteors.add_argument(
+        "--constellation-labels",
+        action="store_true",
+        help="name the constellations",
+    )
+    meteors.add_argument(
         "-t",
         "--time",
         help='local date and time to show the sky, e.g. "2026-11-17 03:00" (default: '
@@ -266,6 +285,8 @@ def main(argv: list[str] | None = None) -> int:
                     timestamp=args.timestamp,
                     labels=args.labels,
                     when=parse_local_datetime(args.time, zone) if args.time else None,
+                    asterism_labels=args.asterism_labels,
+                    constellation_labels=args.constellation_labels,
                 )
             ]
         else:

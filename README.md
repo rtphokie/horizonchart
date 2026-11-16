@@ -97,9 +97,12 @@ horizonchart twilight --location "Ottawa, ON" --date 2026-10-02
 
 ```sh
 horizonchart meteors Leonids --location "Raleigh, NC"
-# -> leonids_20261117T0600_35.78N_78.64W.png
+# -> leonids_20261117T0500_35.78N_78.64W.png
 #    "Leonid Meteor Shower" across the top,
-#    "Look overhead 2 hours before sunrise, around 5:00 am" across the bottom
+#    "Look southeast 2 hours before sunrise" across the bottom
+
+horizonchart meteors geminids -l "35.78N 78.64W" -d 2026-12-14
+# "Look overhead around 2:00 am"
 
 horizonchart meteors orionids -l "35.78N 78.64W" -d 2026-10-21
 # "Look overhead after moonset at 2:30 am"
@@ -113,22 +116,32 @@ Perseids, Orionids, Leonids, Geminids, Ursids ("Leonid", "leonids" and
 |---|---|
 | `-d, --date` | Morning to plan for (default: the next morning of the shower's peak) |
 | `-t, --time` | Local date and time to chart instead of when the radiant is highest |
+| `--timestamp` | Add the date, time and location in the lower right corner |
+| `--asterism-labels` | Name the highlighted asterisms (Sickle of Leo, …) |
+| `--constellation-labels` | Name the constellations |
+
+The radiant is circled, with meteors streaking away from it (and no label).
+Asterisms and constellations are drawn but, unless asked for, not named.
 
 **When it's charted and what it advises.** "Night" runs from the end of
 evening civil twilight to the start of morning civil twilight (the Sun 6°
 below the horizon); nothing is charted or recommended in a brighter sky.
 
-- The chart shows the sky when the radiant is highest during the night, to
-  the nearest half hour. For radiants that peak after dawn (the Leonids),
-  that's the last half hour before twilight.
-- The advice is to look 2 hours before sunrise, rounded to the half hour, or
-  "before dawn" at the start of twilight where twilight lasts longer than
-  that.
+- By default the chart shows the sky when the radiant is highest during the
+  night, to the nearest half hour, and the advice gives that time: "Look
+  overhead around 2:00 am" (the Geminids).
+- If the radiant is still climbing when morning twilight begins (its highest
+  point comes after that, as with the Leonids), the chart shows 2 hours
+  before sunrise instead and the advice says so: "Look southeast 2 hours
+  before sunrise". Where twilight has already begun 2 hours before sunrise,
+  it's the start of twilight, "before dawn".
 - Weaker showers (under 30 meteors an hour at peak) need a moonless sky: if
-  the Moon sets during the night with the radiant already up, the advice is
-  "after moonset at 12:30 am" (or "Midnight") instead.
+  the Moon sets during the night, before that time, with the radiant already
+  up, the advice is "after moonset at 12:30 am" (rounded to the half hour, or
+  "Midnight") instead.
 - The direction is the eight-point compass direction of the radiant at the
-  charted time, or "overhead" above 70°.
+  charted time, or "overhead" above 70°. `--time` changes only the time
+  charted.
 
 Peak dates and radiant positions are from the International Meteor
 Organization's working list; peaks can shift by a day from year to year, so
@@ -141,7 +154,7 @@ check the IMO's calendar and use `--date` if needed.
 | `-l, --location` | Coordinates (`35.19,-88.99`, `47.99N 84.77W`) or a place name (`"Monkey's Eyebrow, NC"`, `"Wawa, ON"`) |
 | `--tz` | Time zone name; by default it's looked up from the location                                            |
 | `-o, --output-dir` | Where to write PNGs (default: current directory)                                                       |
-| `--no-timestamp` | Leave off the date, time and location in the lower right corner                                        |
+| `--no-timestamp` | Leave off the date, time and location in the lower right corner (finder and twilight charts)          |
 | `--no-labels` | Leave off all names: planets, the Moon, stars, deep-sky objects, asterisms and constellations          |
 
 Place names are looked up with OpenStreetMap's
@@ -191,7 +204,8 @@ plot_twilight_views(..., title=False, timestamp=False, labels=False)
   view.
 - At most five stars are labeled, chosen from a priority list of well-known
   names (Polaris, Sirius, Betelgeuse, Vega, …). Other stars are unlabeled.
-- The date, time and location are in small text in the lower right.
+- The date, time and location are in small text in the lower right
+  (meteor shower charts only with `--timestamp`).
 
 **Finder charts**
 

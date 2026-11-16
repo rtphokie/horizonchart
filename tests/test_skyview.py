@@ -371,3 +371,9 @@ def test_headroom_keeps_the_chart_and_its_aspect():
     assert padded.getpixel((0, padded.height - 1)) == (10, 8, 6)
     assert {padded.getpixel((x, 0)) for x in range(padded.width)} == {(0x20, 0x10, 0x3A)}
     assert padded.getpixel((padded.width // 2, padded.height - 90)) == (0x20, 0x10, 0x3A)
+
+
+def test_destination_follows_a_great_circle():
+    assert skyview.destination(100, 20, 0, 10) == pytest.approx((100, 30))
+    ra, dec = skyview.destination(100, 0, 90, 10)
+    assert (ra, dec) == pytest.approx((110, 0), abs=1e-9)

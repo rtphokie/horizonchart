@@ -6,6 +6,7 @@ brightest stars for orientation.
 """
 
 import math
+import random
 import re
 from dataclasses import dataclass
 from functools import cache
@@ -151,6 +152,19 @@ TARGET_COLORS = {
 # Drawn as rings so the marker doesn't hide what's there: a deep-sky object, or
 # the stars a meteor shower's radiant is among
 HOLLOW_KINDS = {"dso", "radiant"}
+# A radiant is shown by its meteors rather than named
+UNLABELED_KINDS = {"radiant"}
+
+# Meteors streaking away from a radiant: up to STREAK_COUNT of them, each
+# starting STREAK_START degrees out (meteors are rarely seen right at the
+# radiant), STREAK_LENGTH degrees long and brightening from tail to head over
+# STREAK_SEGMENTS pieces. Seeded, so the same chart always looks the same.
+STREAK_COUNT = 10
+STREAK_START = (6, 16)
+STREAK_LENGTH = (5, 12)
+STREAK_SEGMENTS = 8
+STREAK_COLOR = "#fff3d6"
+STREAK_SEED = 1833  # the great Leonid storm
 
 ASTERISM_COLOR = "#5fc4c9"
 # Labels outside an asterism: sides tried after the asterism's preferred one,
@@ -666,12 +680,15 @@ def time_and_place(dt: datetime, lat: float, lon: float) -> str:
     return f"{dt:%Y%m%dT%H%M}_{lat_part}_{lon_part}"
 
 
-def register_obstacle_line(p: HorizonPlot, line: list[Star], spacing: float = 12) -> None:
-    """Make labels avoid a line drawn with p.line(). Starplot only indexes its
-    own constellation lines (which labels may cross anyway), so points along
-    the line go into the marker index that labels do avoid. Uses starplot
-    internals: _prepare_coords, canvas._to_display and _markers_rtree."""
-    display = [p.canvas._to_display(*p._prepare_coords(s.ra, s.dec)) for s in line]
+def register_obstacle_line(
+    p: HorizonPlot, line: list[tuple[float, float]], spacing: float = 12
+) -> None:
+    """Make labels avoid a line drawn with p.line() through these RA/Decs.
+    Starplot only indexes its own constellation lines (which labels may cross
+    anyway), so points along the line go into the marker index that labels
+    do avoid. Uses starplot internals: _prepare_coords, canvas._to_display
+    and _markers_rtree."""
+    display = [p.canvas._to_display(*p._prepare_coords(ra, dec)) for ra, dec in line]
     radius = 6 * p.scale
     for (x1, y1), (x2, y2) in zip(display, display[1:]):
         steps = max(1, int(math.hypot(x2 - x1, y2 - y1) / spacing))
@@ -827,6 +844,61 @@ def target_anchors(
     return vertical + [a for a in sideways if not a.startswith(toward)]
 
 
+def destination(ra: float, dec: float, bearing: float, distance: float) -> tuple[float, float]:
+    """RA/Dec `distance` degrees from `ra`/`dec` along the great circle that
+    leaves it at `bearing` (degrees east of north)."""
+    ra1, dec1, b, d = map(math.radians, (ra, dec, bearing, distance))
+    dec2 = math.asin(
+        math.sin(dec1) * math.cos(d) + math.cos(dec1) * math.sin(d) * math.cos(b)
+    )
+    ra2 = ra1 + math.atan2(
+        math.sin(b) * math.sin(d) * math.cos(dec1),
+        math.cos(d) - math.sin(dec1) * math.sin(dec2),
+    )
+    return math.degrees(ra2) % 360, math.degrees(dec2)
+
+
+def draw_streaks(p: HorizonPlot, sky: Sky, radiant: Target, min_altitude: float) -> None:
+    """Meteor streaks pointing away from `radiant`, in directions spread
+    around it, which labels drawn afterward avoid; any that would dip below
+    `min_altitude` or run out of the view are left out."""
+    rng = random.Random(STREAK_SEED)
+    candidates = 2 * STREAK_COUNT
+    drawn = 0
+    for i in range(candidates):
+        bearing = (i * 360 / candidates + rng.uniform(-6, 6)) * 7 % 360  # scattered order
+        start = rng.uniform(*STREAK_START)
+        length = rng.uniform(*STREAK_LENGTH)
+        points = [
+            destination(radiant.ra, radiant.dec, bearing, start + length * k / STREAK_SEGMENTS)
+            for k in range(STREAK_SEGMENTS + 1)
+        ]
+        if any(
+            sky.altaz(ra, dec)[0] < min_altitude or not p.in_bounds(ra, dec)
+            for ra, dec in points
+        ):
+            continue
+        for k in range(STREAK_SEGMENTS):
+            fraction = (k + 1) / STREAK_SEGMENTS
+            p.line(
+                coordinates=points[k : k + 2],
+                style={
+                    "line": {
+                        "width": 1 + 6 * fraction,
+                        "stroke": STREAK_COLOR,
+                        "opacity": 0.05 + 0.9 * fraction**2,
+                        # Round caps would overlap into dots along the tail
+                        "cap_style": "butt",
+                        "zorder": 900,
+                    }
+                },
+            )
+        register_obstacle_line(p, points)
+        drawn += 1
+        if drawn == STREAK_COUNT:
+            break
+
+
 def label_targets(
     p: HorizonPlot,
     sky: Sky,
@@ -910,13 +982,19 @@ def render(
     ground: tuple[float, float] = GROUND,
     star_magnitude: float | None = None,
     labels: bool = True,
+    asterism_labels: bool = True,
+    constellation_labels: bool = True,
 ) -> Path:
     """Draw a horizon view and export it to `path` as a 16:9 PNG. `star_where`
     selects the background stars (`star_magnitude` is its magnitude limit, if
     it has one, used to decide which stars can be labeled); stars in the
     drawn constellations and asterisms, and the brightest stars in view, are
     always drawn. `labels=False` leaves off every name: targets, stars,
-    asterisms and constellations."""
+    asterisms and constellations; `asterism_labels=False` and
+    `constellation_labels=False` leave off just those (their figures are
+    still drawn)."""
+    asterism_labels = labels and asterism_labels
+    constellation_labels = labels and constellation_labels
     az_scale = (azimuth[1] - azimuth[0]) / REFERENCE_AZ_SPAN
     asterism_stars = [s for _asterism, lines in asterisms for line in lines for s in line]
 
@@ -958,11 +1036,18 @@ def render(
                     }
                 },
             )
-            register_obstacle_line(p, line)
+            register_obstacle_line(p, [(s.ra, s.dec) for s in line])
+
+    # Meteor streaks next, so every label drawn after keeps clear of them
+    for target in targets:
+        if target.kind == "radiant":
+            draw_streaks(p, sky, target, min_altitude=ground[1] + 1)
 
     # Labels inside an asterism first, then those beside one, which can then
     # avoid the others
-    labeled = [(a, lines) for a, lines in asterisms if labels and not same_as_constellation(a)]
+    labeled = [
+        (a, lines) for a, lines in asterisms if asterism_labels and not same_as_constellation(a)
+    ]
     labeled.sort(key=lambda al: al[0].label_style.get("anchor_point", "center") != "center")
     for asterism, lines in labeled:
         label = {
@@ -1087,16 +1172,17 @@ def render(
             },
         )
     if labels:
-        label_targets(p, sky, targets, sizes, azimuth)
+        labeled = [t for t in targets if t.kind not in UNLABELED_KINDS]
+        label_targets(p, sky, labeled, {t: sizes[t] for t in labeled}, azimuth)
 
     # Blank labels are skipped, so the overridden ones get placed by hand
-    if labels:
+    if constellation_labels:
         p.constellation_labels(
             label_fn=lambda c: (
                 "" if c.iau_id in CONSTELLATION_LABEL_POSITIONS else Constellation.get_label(c)
             )
         )
-    for iau_id in constellations if labels else []:
+    for iau_id in constellations if constellation_labels else []:
         if iau_id in CONSTELLATION_LABEL_POSITIONS:
             ra, dec = CONSTELLATION_LABEL_POSITIONS[iau_id]
             p.text(
@@ -1125,12 +1211,15 @@ def plot_targets(
     heading: str | None = None,
     caption: str | None = None,
     filename: str | None = None,
+    asterism_labels: bool = True,
+    constellation_labels: bool = True,
 ) -> Path:
     """Render a horizon view of `targets` as seen from `lat`/`lon` at `when`
     (a timezone-aware local datetime). Targets are names (see
     resolve_target) or Target objects, for points no catalog names.
     `timestamp` adds the date, time and place in the lower right corner;
-    `labels=False` leaves off every name. `heading` is drawn centered at the
+    `labels=False` leaves off every name, and `asterism_labels=False` or
+    `constellation_labels=False` just those. `heading` is drawn centered at the
     top and `caption` centered on a taller landscape at the bottom.
     `filename` replaces the default name of the PNG. Returns its path."""
     if when.tzinfo is None:
@@ -1186,6 +1275,8 @@ def plot_targets(
         path=Path(output_dir) / (filename or output_filename(names, when, lat, lon)),
         ground=TITLED_GROUND if caption else GROUND,
         labels=labels,
+        asterism_labels=asterism_labels,
+        constellation_labels=constellation_labels,
     )
     annotate(
         path,

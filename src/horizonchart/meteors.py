@@ -160,9 +160,10 @@ def round_within(dt: datetime, start: datetime, end: datetime) -> datetime:
 
 def highest_time(
     lat: float, lon: float, shower: MeteorShower, night: tuple[datetime, datetime]
-) -> datetime:
+) -> datetime | None:
     """When the radiant is highest during `night` (see night_hours), to the
-    nearest half hour."""
+    nearest half hour, or None if it's still climbing when the night ends
+    (its highest point comes after morning twilight begins)."""
     start, end = night
     ts = load.timescale()
     steps = int((end - start) / SEARCH_STEP) + 1
@@ -173,6 +174,8 @@ def highest_time(
     best = int(alt.degrees.argmax())
     if alt.degrees[best] <= 0:
         raise ValueError(f"The {shower.name} radiant doesn't rise during the night")
+    if best == steps - 1:
+        return None
     return round_within(start + best * SEARCH_STEP, start, end)
 
 
@@ -186,23 +189,28 @@ def viewing_plan(
 ) -> tuple[datetime, str]:
     """The time to chart for the night before the morning of `day` and the
     advice to caption it with. The chart shows the sky when the radiant is
-    highest during the night, or at `when` if given; the advice's compass
-    direction is the radiant's at that time. The advice is to look 2 hours
-    before sunrise, e.g. "Look southeast 2 hours before sunrise, around
-    5:00 am", or from the start of morning civil twilight if that's earlier.
-    For weak showers, when the Moon sets during the night with the radiant
-    up, it's "Look east after moonset at 12:30 am" instead. Times are rounded
-    to the half hour."""
+    highest during the night, e.g. "Look overhead around 2:00 am". If it's
+    still climbing when morning twilight begins, it shows 2 hours before
+    sunrise instead, e.g. "Look southeast 2 hours before sunrise", or the
+    start of twilight if that's earlier ("before dawn"). For weak showers,
+    when the Moon sets during the night before then with the radiant up, the
+    advice is "after moonset at 12:30 am" instead. `when` overrides the
+    time charted, not the advice; the compass direction is always the
+    radiant's at the time charted. Times are rounded to the half hour."""
     zone = ZoneInfo(tz or TimezoneFinder().timezone_at(lat=lat, lng=lon))
     night = night_hours(lat, lon, day, zone.key)
-    sunrise, _sunset = sun_events(lat, lon, day, zone.key)
-    look_from = sunrise - timedelta(hours=HOURS_BEFORE_SUNRISE)
-    if look_from <= night[1]:
-        look_from = round_within(look_from, *night)
-        advice = f"{HOURS_BEFORE_SUNRISE} hours before sunrise, around {clock_text(look_from)}"
+    look_from = highest_time(lat, lon, shower, night)
+    if look_from is not None:
+        advice = f"around {clock_text(look_from)}"
     else:
-        look_from = round_within(night[1], *night)
-        advice = f"before dawn, around {clock_text(look_from)}"
+        sunrise, _sunset = sun_events(lat, lon, day, zone.key)
+        look_from = sunrise - timedelta(hours=HOURS_BEFORE_SUNRISE)
+        if look_from <= night[1]:
+            advice = f"{HOURS_BEFORE_SUNRISE} hours before sunrise"
+        else:
+            look_from = night[1]
+            advice = "before dawn"
+        look_from = round_within(look_from, *night)
 
     if shower.zhr < WEAK_ZHR:
         moon_down = moonset(lat, lon, night[0], look_from)
@@ -211,7 +219,7 @@ def viewing_plan(
             if Sky(lat, lon, start).altaz(shower.ra, shower.dec)[0] > 0:
                 advice = f"after moonset at {clock_text(start)}"
 
-    when = when or highest_time(lat, lon, shower, night)
+    when = when or look_from
     alt, az = Sky(lat, lon, when).altaz(shower.ra, shower.dec)
     if alt < 0:
         raise ValueError(f"The {shower.name} radiant is below the horizon at {when:%H:%M}")
@@ -226,19 +234,22 @@ def plot_meteor_shower(
     day: date | None = None,
     tz: str | None = None,
     output_dir: str | Path = ".",
-    timestamp: bool = True,
+    timestamp: bool = False,
     labels: bool = True,
     when: datetime | None = None,
+    asterism_labels: bool = False,
+    constellation_labels: bool = False,
 ) -> Path:
     """Render the sky from `lat`/`lon` with `shower`'s radiant marked, for
     the night before the morning of `day` (default: the next morning of
     maximum), with the shower's name across the top and advice on where and
-    when to look across the bottom (see viewing_plan). The sky is shown when
-    the radiant is highest during the night, or at `when` (a timezone-aware
-    local datetime) if given. `timestamp` adds the date, time and place in
-    the lower right corner; `labels=False` leaves off every name except the
-    title and advice. Returns the path of the PNG, e.g.
-    leonids_20261117T0600_35.78N_78.64W.png."""
+    when to look across the bottom, at the time viewing_plan() picks or at
+    `when` (a timezone-aware local datetime) if given. The radiant is circled, with meteors streaking
+    away from it. `timestamp` adds the date, time and place in the lower
+    right corner; asterisms and constellations are named only with
+    `asterism_labels` and `constellation_labels`; `labels=False` leaves off
+    every name except the title and advice. Returns the path of the PNG, e.g.
+    leonids_20261117T0500_35.78N_78.64W.png."""
     if isinstance(shower, str):
         shower = find_shower(shower)
     zone = ZoneInfo(tz or TimezoneFinder().timezone_at(lat=lat, lng=lon))
@@ -257,4 +268,6 @@ def plot_meteor_shower(
         heading=shower.title,
         caption=advice,
         filename=output_filename([shower.name], when, lat, lon),
+        asterism_labels=asterism_labels,
+        constellation_labels=constellation_labels,
     )
