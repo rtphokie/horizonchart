@@ -358,3 +358,16 @@ def test_close_targets_labeled_away_from_each_other():
     assert skyview.target_anchors(mars, sky, azimuth, apart) == (
         skyview.LEFT_ANCHORS + skyview.RIGHT_ANCHORS
     )
+
+
+def test_headroom_keeps_the_chart_and_its_aspect():
+    sky = Image.new("RGB", (160, 90), "#20103a")
+    sky.paste((0, 0, 0), (0, 0, 160, 2))  # starplot's border
+    sky.paste((10, 8, 6), (0, 80, 160, 90))  # ground
+    padded = skyview.add_headroom(sky, 18)
+    assert padded.width / padded.height == pytest.approx(160 / 90, abs=0.02)
+    # The chart sits at the bottom, centered, with no border line left above it
+    assert padded.getpixel((padded.width // 2, padded.height - 1)) == (10, 8, 6)
+    assert padded.getpixel((0, padded.height - 1)) == (10, 8, 6)
+    assert {padded.getpixel((x, 0)) for x in range(padded.width)} == {(0x20, 0x10, 0x3A)}
+    assert padded.getpixel((padded.width // 2, padded.height - 90)) == (0x20, 0x10, 0x3A)

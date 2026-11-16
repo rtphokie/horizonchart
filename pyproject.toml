@@ -1,6 +1,6 @@
 [project]
 name = "horizonchart"
-version = "0.1.3"
+version = "0.2.0"
 description = "Clean horizon-view sky charts: finder charts for planets, the Moon and deep-sky objects, and twilight views"
 readme = "README.md"
 authors = [
@@ -27,6 +27,7 @@ dependencies = [
     # ibis (via starplot) still calls fetch_arrow_table(), removed in duckdb 2
     "duckdb<2",
     "geopy>=2.5.0",
+    "numpy>=1.23",
     "pillow>=10.1",
     "platformdirs>=4.0",
     "shapely>=2.0",

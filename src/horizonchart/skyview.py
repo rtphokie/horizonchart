@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 # Sets starplot's data path; must come before starplot is imported
 from horizonchart import DATA_PATH
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from shapely import affinity
 from shapely.geometry import Point
@@ -140,7 +141,16 @@ BODY_COLORS = {
     "NEPTUNE": "#8fb0ff",  # blue
     "PLUTO": "#d9c4a6",  # tan
 }
-TARGET_COLORS = {"planet": "#f5d77a", "moon": "#e8e8e8", "dso": "#9fd8ff", "star": "#ffffff"}
+TARGET_COLORS = {
+    "planet": "#f5d77a",
+    "moon": "#e8e8e8",
+    "dso": "#9fd8ff",
+    "star": "#ffffff",
+    "radiant": "#ffb36b",
+}
+# Drawn as rings so the marker doesn't hide what's there: a deep-sky object, or
+# the stars a meteor shower's radiant is among
+HOLLOW_KINDS = {"dso", "radiant"}
 
 ASTERISM_COLOR = "#5fc4c9"
 # Labels outside an asterism: sides tried after the asterism's preferred one,
@@ -272,7 +282,7 @@ DEFLECTION_NUDGE = 1e-4
 @dataclass(frozen=True)
 class Target:
     label: str
-    kind: str  # planet, moon, dso or star
+    kind: str  # planet, moon, dso, star or radiant
     ra: float  # degrees
     dec: float  # degrees
     font_size: float = TARGET_FONT_SIZE
@@ -499,6 +509,12 @@ def crop_to_aspect(path: Path, aspect: float = ASPECT) -> None:
 # Inter (SIL Open Font License), bundled so titles look the same everywhere
 FONT_PATH = files("horizonchart") / "fonts" / "Inter.ttf"
 TITLE_SIZE = 0.05  # title text height as a fraction of image height
+HEADING_MARGIN = 0.03  # from the top edge, as a fraction of image height
+# Sky added above a chart with a heading, as a fraction of its height, so the
+# heading never covers what's charted (views can reach the zenith, so the
+# room can't come from the view itself)
+HEADROOM = 2 * HEADING_MARGIN + TITLE_SIZE
+EDGE_SAMPLE = 24  # px of each edge whose median color extends the image
 FOOTNOTE_SIZE = 0.018
 FOOTNOTE_MARGIN = 0.015  # from the bottom and right edges
 FOOTNOTE_COLOR = "#a0a0a8"
@@ -511,6 +527,8 @@ GROUND_STOPS = (
     (0.7, "#100A07"),
     (1.0, "#090604"),
 )
+# Hills between these altitudes (degrees)
+GROUND = (3.5, 6)
 # Twilight views draw a taller landscape so the title fits on it: hills
 # between these altitudes, which is below where twilight haze hides things
 TITLED_GROUND = (6, 9)
@@ -534,21 +552,66 @@ def footnote_text(when: datetime, lat: float, lon: float) -> str:
     )
 
 
+def add_headroom(im: Image.Image, height: int) -> Image.Image:
+    """`im` with `height` px of sky added on top and as much on the sides as
+    keeps its aspect ratio. Each added row continues its row's edge color
+    (the median over EDGE_SAMPLE px, so a star at the edge doesn't streak),
+    which carries on the sky gradient and the hills."""
+    pixels = np.asarray(im)
+    h, w, _ = pixels.shape
+    side = round(height * w / h / 2)
+    # Starplot frames the plot with a thin dark border, which would otherwise
+    # be left as a line across the sky
+    border = 0
+    while border < 10 and pixels[border].sum() < 0.8 * pixels[border + 10].sum():
+        border += 1
+    pixels = pixels[border:]
+    height += border
+    left = np.median(pixels[:, :EDGE_SAMPLE], axis=1).astype(np.uint8)
+    right = np.median(pixels[:, -EDGE_SAMPLE:], axis=1).astype(np.uint8)
+    body = np.concatenate(
+        [np.repeat(left[:, None], side, axis=1), pixels, np.repeat(right[:, None], side, axis=1)],
+        axis=1,
+    )
+    top_color = np.median(body[:EDGE_SAMPLE].reshape(-1, 3), axis=0).astype(np.uint8)
+    top = np.broadcast_to(top_color, (height, body.shape[1], 3))
+    return Image.fromarray(np.concatenate([top, body]))
+
+
 def annotate(
     path: Path,
     footnote: str | None = None,
     title: str | None = None,
     altitude: tuple[float, float] | None = None,
+    heading: str | None = None,
 ) -> None:
     """Draw a small grey footnote in the lower right corner and, if given, a
     white title centered on the landscape (which needs the view's
-    `altitude` range to find it)."""
-    if footnote is None and title is None:
+    `altitude` range to find it) and a white heading centered at the top,
+    on sky added above the chart (see add_headroom)."""
+    if footnote is None and title is None and heading is None:
         return
     with Image.open(path) as im:
         im = im.convert("RGB")
+        if title is not None:
+            # From the bottom, which stays put when headroom is added
+            ground_height = im.height * TITLED_GROUND[0] / (altitude[1] - altitude[0])
+        if heading is not None:
+            im = add_headroom(im, round(im.height * HEADROOM))
         w, h = im.size
         draw = ImageDraw.Draw(im)
+
+        if heading is not None:
+            # Outlined in the sky's color so it reads over constellation lines
+            draw.text(
+                (w / 2, h * HEADING_MARGIN),
+                heading,
+                font=title_font(round(h * TITLE_SIZE)),
+                anchor="mt",
+                fill="#ffffff",
+                stroke_width=round(h * 0.004),
+                stroke_fill="#0b1026",
+            )
 
         margin = round(h * FOOTNOTE_MARGIN)
         footnote_left = w - margin
@@ -568,7 +631,7 @@ def annotate(
 
         # Center the title in the band below the lowest point of the hills,
         # shrinking it if it would run into the footnote
-        ground_top = h * (1 - TITLED_GROUND[0] / (altitude[1] - altitude[0]))
+        ground_top = h - ground_height
         size = round(h * TITLE_SIZE)
         while size > 10:
             font = title_font(size)
@@ -844,7 +907,7 @@ def render(
     constellations: list[str],
     star_where: list,
     path: Path,
-    ground: tuple[float, float] = (3.5, 6),
+    ground: tuple[float, float] = GROUND,
     star_magnitude: float | None = None,
     labels: bool = True,
 ) -> Path:
@@ -1006,8 +1069,7 @@ def render(
     sizes = {}
     for target in targets:
         color = BODY_COLORS.get(target.label, TARGET_COLORS[target.kind])
-        # Deep-sky objects get a ring so the marker doesn't hide the object
-        hollow = target.kind == "dso"
+        hollow = target.kind in HOLLOW_KINDS
         sizes[target] = 60 if hollow else FAINT_MARKER_SIZE if target.faint else 40
         p.marker(
             ra=target.ra,
@@ -1055,16 +1117,22 @@ def render(
 def plot_targets(
     lat: float,
     lon: float,
-    targets: list[str],
+    targets: list[str | Target],
     when: datetime,
     output_dir: str | Path = ".",
     timestamp: bool = True,
     labels: bool = True,
+    heading: str | None = None,
+    caption: str | None = None,
+    filename: str | None = None,
 ) -> Path:
     """Render a horizon view of `targets` as seen from `lat`/`lon` at `when`
-    (a timezone-aware local datetime). `timestamp` adds the date, time and
-    place in the lower right corner; `labels=False` leaves off every name.
-    Returns the path of the PNG."""
+    (a timezone-aware local datetime). Targets are names (see
+    resolve_target) or Target objects, for points no catalog names.
+    `timestamp` adds the date, time and place in the lower right corner;
+    `labels=False` leaves off every name. `heading` is drawn centered at the
+    top and `caption` centered on a taller landscape at the bottom.
+    `filename` replaces the default name of the PNG. Returns its path."""
     if when.tzinfo is None:
         raise ValueError("`when` must be timezone-aware")
     if not targets:
@@ -1072,7 +1140,7 @@ def plot_targets(
 
     observer = Observer(lat=lat, lon=lon, dt=when)
     sky = Sky(lat, lon, when)
-    resolved = [resolve_target(name, observer) for name in targets]
+    resolved = [t if isinstance(t, Target) else resolve_target(t, observer) for t in targets]
     for target in resolved:
         alt, _az = sky.altaz(target.ra, target.dec)
         if alt < 0:
@@ -1115,10 +1183,17 @@ def plot_targets(
         asterisms,
         constellations,
         star_where=[_.magnitude < 4.5, _.constellation_id.isin(constellations)],
-        path=Path(output_dir) / output_filename(names, when, lat, lon),
+        path=Path(output_dir) / (filename or output_filename(names, when, lat, lon)),
+        ground=TITLED_GROUND if caption else GROUND,
         labels=labels,
     )
-    annotate(path, footnote_text(when, lat, lon) if timestamp else None)
+    annotate(
+        path,
+        footnote_text(when, lat, lon) if timestamp else None,
+        caption,
+        altitude,
+        heading,
+    )
     return path
 
 

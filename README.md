@@ -7,6 +7,8 @@ Clean, 16:9 horizon-view sky charts built on [starplot](https://starplot.dev):
   asterisms, bright stars) to find them.
 - **Twilight views** for a date: the sky before sunrise and after sunset,
   looking east or west, whichever has more to see.
+- **Meteor shower charts**: where a shower's radiant is, with advice on which
+  way to look and when.
 
 ![Finder chart: Saturn from Monkey's Eyebrow, KY, 10 PM on Oct 2, 2026](https://raw.githubusercontent.com/rtphokie/horizonchart/main/docs/finder-saturn.png)
 
@@ -91,6 +93,47 @@ horizonchart twilight --location "Ottawa, ON" --date 2026-10-02
 | `-m, --limiting-magnitude` | Faintest stars and deep-sky objects shown. Default 2.0 (suburban twilight); 4–6 for dark skies |
 | `--no-title` | Leave off the title ("Looking east, 1 hour before sunrise") |
 
+### Meteor shower radiant
+
+```sh
+horizonchart meteors Leonids --location "Raleigh, NC"
+# -> leonids_20261117T0600_35.78N_78.64W.png
+#    "Leonid Meteor Shower" across the top,
+#    "Look overhead 2 hours before sunrise, around 5:00 am" across the bottom
+
+horizonchart meteors orionids -l "35.78N 78.64W" -d 2026-10-21
+# "Look overhead after moonset at 2:30 am"
+```
+
+Showers: Quadrantids, Lyrids, Eta Aquariids, Southern Delta Aquariids,
+Perseids, Orionids, Leonids, Geminids, Ursids ("Leonid", "leonids" and
+"Leonid meteor shower" all work).
+
+| Option | Meaning |
+|---|---|
+| `-d, --date` | Morning to plan for (default: the next morning of the shower's peak) |
+| `-t, --time` | Local date and time to chart instead of when the radiant is highest |
+
+**When it's charted and what it advises.** "Night" runs from the end of
+evening civil twilight to the start of morning civil twilight (the Sun 6°
+below the horizon); nothing is charted or recommended in a brighter sky.
+
+- The chart shows the sky when the radiant is highest during the night, to
+  the nearest half hour. For radiants that peak after dawn (the Leonids),
+  that's the last half hour before twilight.
+- The advice is to look 2 hours before sunrise, rounded to the half hour, or
+  "before dawn" at the start of twilight where twilight lasts longer than
+  that.
+- Weaker showers (under 30 meteors an hour at peak) need a moonless sky: if
+  the Moon sets during the night with the radiant already up, the advice is
+  "after moonset at 12:30 am" (or "Midnight") instead.
+- The direction is the eight-point compass direction of the radiant at the
+  charted time, or "overhead" above 70°.
+
+Peak dates and radiant positions are from the International Meteor
+Organization's working list; peaks can shift by a day from year to year, so
+check the IMO's calendar and use `--date` if needed.
+
 ### Common options
 
 | Option | Meaning                                                                                                |
@@ -115,6 +158,7 @@ your email address) to include a contact in the request's user agent.
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+from horizonchart.meteors import plot_meteor_shower
 from horizonchart.skyview import plot_targets, plot_twilight_views
 
 plot_targets(47.99, -84.77, ["Saturn"],
@@ -122,6 +166,10 @@ plot_targets(47.99, -84.77, ["Saturn"],
 
 plot_twilight_views(47.99, -84.77, date(2026, 10, 2))
 # {"morning": Path(...), "evening": Path(...)}
+
+plot_meteor_shower(35.78, -78.64, "Leonids")  # next peak; or pass a date
+plot_meteor_shower(35.78, -78.64, "Leonids", date(2026, 11, 17),
+                   when=datetime(2026, 11, 17, 3, 0, tzinfo=ZoneInfo("America/New_York")))
 
 # The command line's --no-title, --no-timestamp and --no-labels
 plot_targets(..., timestamp=False, labels=False)

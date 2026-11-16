@@ -1,4 +1,4 @@
-"""Command line interface: horizonchart target ... / horizonchart twilight ..."""
+"""Command line interface: horizonchart target ... / twilight ... / meteors ..."""
 
 import argparse
 import json
@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from timezonefinder import TimezoneFinder
 
 from horizonchart import DATA_PATH, __version__
+from horizonchart.meteors import SHOWERS, plot_meteor_shower
 from horizonchart.skyview import (
     LIMITING_MAGNITUDE,
     plot_targets,
@@ -198,6 +199,34 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help='leave off the title ("Looking east, 1 hour before sunrise")',
     )
+
+    meteors = commands.add_parser(
+        "meteors",
+        parents=[common],
+        help="where a meteor shower's radiant is, and when to look",
+        description=(
+            "The sky with a meteor shower's radiant marked, titled with the "
+            "shower and with advice on where and when to look."
+        ),
+    )
+    meteors.add_argument(
+        "shower",
+        metavar="SHOWER",
+        help="e.g. " + ", ".join(s.name for s in SHOWERS),
+    )
+    meteors.add_argument(
+        "-d",
+        "--date",
+        type=date.fromisoformat,
+        help="morning to plan for, e.g. 2026-11-17 (default: the next morning of "
+        "the shower's peak)",
+    )
+    meteors.add_argument(
+        "-t",
+        "--time",
+        help='local date and time to show the sky, e.g. "2026-11-17 03:00" (default: '
+        "when the radiant is highest while it's dark, to the nearest half hour)",
+    )
     return parser
 
 
@@ -223,6 +252,20 @@ def main(argv: list[str] | None = None) -> int:
                     args.output_dir,
                     timestamp=args.timestamp,
                     labels=args.labels,
+                )
+            ]
+        elif args.command == "meteors":
+            paths = [
+                plot_meteor_shower(
+                    lat,
+                    lon,
+                    args.shower,
+                    args.date,
+                    tz=zone.key,
+                    output_dir=args.output_dir,
+                    timestamp=args.timestamp,
+                    labels=args.labels,
+                    when=parse_local_datetime(args.time, zone) if args.time else None,
                 )
             ]
         else:
