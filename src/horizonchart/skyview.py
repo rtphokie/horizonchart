@@ -42,6 +42,12 @@ from timezonefinder import TimezoneFinder
 
 load = Loader(str(DATA_PATH))
 
+
+@cache
+def ephemeris():
+    """The DE421 ephemeris, opened once; skyfield's Loader doesn't cache."""
+    return load("de421.bsp")
+
 PLANETS = ["mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"]
 
 # Constellations are shown only if they contain a target, their boundary
@@ -327,7 +333,7 @@ class Sky:
 
     def __init__(self, lat: float, lon: float, dt: datetime):
         ts = load.timescale()
-        eph = load("de421.bsp")
+        eph = ephemeris()
         self.here = (eph["earth"] + wgs84.latlon(lat, lon)).at(ts.from_datetime(dt))
 
     def altaz(self, ra: float, dec: float) -> tuple[float, float]:
@@ -1135,7 +1141,7 @@ def sun_events(
     """Local sunrise and sunset on `day`."""
     zone = ZoneInfo(tz or TimezoneFinder().timezone_at(lat=lat, lng=lon))
     ts = load.timescale()
-    eph = load("de421.bsp")
+    eph = ephemeris()
     start = datetime.combine(day, time(0), tzinfo=zone)
     times, is_up = almanac.find_discrete(
         ts.from_datetime(start),

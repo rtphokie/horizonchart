@@ -52,3 +52,11 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.1",
 ]
+
+[tool.pytest.ini_options]
+# Deprecations inside starplot, rtree and ibis; nothing to fix on our side
+filterwarnings = [
+    "ignore:index.get_size\\(\\) is deprecated:DeprecationWarning:rtree",
+    "ignore:fetch_arrow_table\\(\\) is deprecated:DeprecationWarning:ibis",
+    "ignore::pydantic.PydanticDeprecatedSince20:starplot",
+]
