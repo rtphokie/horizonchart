@@ -528,7 +528,7 @@ HEADING_MARGIN = 0.03  # from the top edge, as a fraction of image height
 # heading never covers what's charted (views can reach the zenith, so the
 # room can't come from the view itself)
 HEADROOM = 2 * HEADING_MARGIN + TITLE_SIZE
-EDGE_SAMPLE = 24  # px of each edge whose median color extends the image
+EDGE_SAMPLE = 40  # px of each edge whose median color extends the image
 FOOTNOTE_SIZE = 0.018
 FOOTNOTE_MARGIN = 0.015  # from the bottom and right edges
 FOOTNOTE_COLOR = "#a0a0a8"
@@ -570,7 +570,9 @@ def add_headroom(im: Image.Image, height: int) -> Image.Image:
     """`im` with `height` px of sky added on top and as much on the sides as
     keeps its aspect ratio. Each added row continues its row's edge color
     (the median over EDGE_SAMPLE px, so a star at the edge doesn't streak),
-    which carries on the sky gradient and the hills."""
+    which carries on the sky gradient and the hills. Those edge pixels are
+    replaced by that color too, so a star starplot cut off at the edge
+    doesn't leave half a disc inside the wider image."""
     pixels = np.asarray(im)
     h, w, _ = pixels.shape
     side = round(height * w / h / 2)
@@ -583,8 +585,10 @@ def add_headroom(im: Image.Image, height: int) -> Image.Image:
     height += border
     left = np.median(pixels[:, :EDGE_SAMPLE], axis=1).astype(np.uint8)
     right = np.median(pixels[:, -EDGE_SAMPLE:], axis=1).astype(np.uint8)
+    inner = pixels[:, EDGE_SAMPLE:-EDGE_SAMPLE]
+    side += EDGE_SAMPLE
     body = np.concatenate(
-        [np.repeat(left[:, None], side, axis=1), pixels, np.repeat(right[:, None], side, axis=1)],
+        [np.repeat(left[:, None], side, axis=1), inner, np.repeat(right[:, None], side, axis=1)],
         axis=1,
     )
     top_color = np.median(body[:EDGE_SAMPLE].reshape(-1, 3), axis=0).astype(np.uint8)

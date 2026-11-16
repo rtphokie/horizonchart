@@ -14,6 +14,8 @@ Clean, 16:9 horizon-view sky charts built on [starplot](https://starplot.dev):
 
 ![Twilight view: looking east before sunrise from Ottawa, ON, Oct 2, 2026](https://raw.githubusercontent.com/rtphokie/horizonchart/main/docs/twilight-morning.png)
 
+![Meteor shower chart: the Leonid radiant from Raleigh, NC, before dawn on Nov 17, 2026](https://raw.githubusercontent.com/rtphokie/horizonchart/main/docs/meteors-leonids.png)
+
 ## Install
 
 Requires Python 3.11+.
