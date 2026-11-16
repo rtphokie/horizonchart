@@ -593,6 +593,7 @@ name = "horizonchart"
 version = "0.1.2"
 source = { editable = "." }
 dependencies = [
+    { name = "duckdb" },
     { name = "geopy" },
     { name = "pillow" },
     { name = "platformdirs" },
@@ -610,6 +611,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "duckdb", specifier = "<2" },
     { name = "geopy", specifier = ">=2.5.0" },
     { name = "pillow", specifier = ">=10.1" },
     { name = "platformdirs", specifier = ">=4.0" },

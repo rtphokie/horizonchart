@@ -24,6 +24,8 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Visualization",
 ]
 dependencies = [
+    # ibis (via starplot) still calls fetch_arrow_table(), removed in duckdb 2
+    "duckdb<2",
     "geopy>=2.5.0",
     "pillow>=10.1",
     "platformdirs>=4.0",
